@@ -4,6 +4,7 @@ use axum::{body::Bytes, BoxError};
 use futures::Stream;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use std::fs;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -18,8 +19,8 @@ pub struct UploadPayload {
 
 #[derive(serde::Serialize)]
 pub struct Job {
-    pub user_id: i32,
     id: i32,
+    pub user_id: i32,
     status: String, // placeholder
     loc: PathBuf,   // Path in the filesystem of where this data is saved
 }
@@ -43,23 +44,33 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 impl Job {
     pub fn new() -> Job {
         let loc = std::path::Path::new(UPLOADS_DIRECTORY).join(Uuid::new_v4().to_string());
+        match fs::create_dir(&loc) {
+            Ok(_) => (),
+            Err(e) => println!("could not create directory {}", e),
+        }
         Job {
+            id: 0,
             user_id: 0,
             status: "".to_string(),
             loc,
-            id: 0,
         }
     }
 
-    pub async fn save_to_disk<S, E>(&self, stream: S) -> Result<(), (StatusCode, String)>
+    pub async fn save_to_disk<S, E>(
+        &self,
+        stream: S,
+        filename: String,
+    ) -> Result<(), (StatusCode, String)>
     where
         S: Stream<Item = Result<Bytes, E>>,
         E: Into<BoxError>,
     {
-        utils::stream_to_file(&self.loc, stream).await?;
+        let full_path = std::path::Path::join(&self.loc, filename);
+        utils::stream_to_file(full_path, stream).await?;
 
         Ok(())
     }
+
     pub async fn add_to_db(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let result = sqlx::query("INSERT INTO jobs (user_id, status) VALUES (?, ?)")
             .bind(self.user_id)

@@ -18,7 +18,8 @@ pub async fn upload(
             match field_name {
                 "file" => {
                     // Save the file to disk
-                    job.save_to_disk(field).await?;
+                    let filename = field.file_name().unwrap().to_string();
+                    job.save_to_disk(field, filename).await?;
                 }
                 "data" => {
                     // Extract relevant fields from the data
