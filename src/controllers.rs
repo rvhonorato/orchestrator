@@ -1,40 +1,51 @@
 use crate::models;
-use crate::services;
 use axum::{
-    extract::{Json, Multipart},
+    extract::{Json, Multipart, State},
     http::StatusCode,
 };
-use uuid::Uuid;
+use sqlx::SqlitePool;
 
-pub async fn upload(mut multipart: Multipart) -> Result<Json<models::Job>, (StatusCode, String)> {
+pub async fn upload(
+    State(pool): State<SqlitePool>,
+    mut multipart: Multipart,
+) -> Result<Json<models::Job>, (StatusCode, String)> {
     let mut user_data = None;
-    // TODO: Find a better way of using the job service here
-    let job_service = services::JobService;
+    // Create an empty job
+    let mut job = models::Job::new();
+
     while let Ok(Some(field)) = multipart.next_field().await {
         if let Some(field_name) = field.name() {
-            // check if this field name is file before proceeding
-            if field_name == "file" {
-                // TODO: use a proper filename here
-                let file_name = Uuid::new_v4().to_string();
+            match field_name {
+                "file" => {
+                    // Save the file to disk
+                    job.save_to_disk(field).await?;
+                }
+                "data" => {
+                    // Extract relevant fields from the data
+                    let data = field
+                        .text()
+                        .await
+                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-                job_service.stream_to_file(&file_name, field).await?;
-            } else if field_name == "data" {
-                let data = field
-                    .text()
-                    .await
-                    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-                user_data = Some(
-                    serde_json::from_str::<models::UploadPayload>(&data)
-                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
-                );
+                    // Map the json to the `UploadPayload` struct
+                    user_data = Some(
+                        serde_json::from_str::<models::UploadPayload>(&data)
+                            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
+                    );
+                }
+                _ => {}
             }
         }
     }
     let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
+    job.set_user_id(user_data.user_id);
 
-    let mut j = job_service.submit().await;
-    j.user_id = user_data.user_id;
-    Ok(Json(j))
+    // Add it to the database and handle potential errors
+    job.add_to_db(&pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(job))
 }
 
 pub async fn ping() -> Json<models::Ping> {
