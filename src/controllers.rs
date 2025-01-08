@@ -1,4 +1,5 @@
 use crate::models;
+use crate::utils;
 use axum::{
     extract::{Json, Multipart, State},
     http::StatusCode,
@@ -19,7 +20,13 @@ pub async fn upload(
                 "file" => {
                     // Save the file to disk
                     let filename = field.file_name().unwrap().to_string();
-                    job.save_to_disk(field, filename).await?;
+
+                    job.save_to_disk(field, &filename).await?;
+
+                    // TODO: Make sure the file is a zip file
+                    if !utils::is_zip(&filename) {
+                        todo!()
+                    }
                 }
                 "data" => {
                     // Extract relevant fields from the data

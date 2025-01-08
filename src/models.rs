@@ -14,7 +14,6 @@ pub const UPLOADS_DIRECTORY: &str = "uploads";
 #[derive(Deserialize)]
 pub struct UploadPayload {
     pub user_id: i32,
-    // service: String,
     // access_level: u8,
 }
 
@@ -61,7 +60,7 @@ impl Job {
     pub async fn save_to_disk<S, E>(
         &self,
         stream: S,
-        filename: String,
+        filename: &String,
     ) -> Result<(), (StatusCode, String)>
     where
         S: Stream<Item = Result<Bytes, E>>,
@@ -69,7 +68,6 @@ impl Job {
     {
         let full_path = std::path::Path::join(&self.loc, filename);
         utils::stream_to_file(full_path, stream).await?;
-
         Ok(())
     }
 
