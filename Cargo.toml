@@ -23,3 +23,4 @@ sqlx = { version = "0.8", features = [
   "sqlite",
   "macros",
 ] }
+reqwest = { version = "0.12.12", features = ["json"] }

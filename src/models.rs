@@ -22,7 +22,7 @@ pub struct Job {
     id: i32,
     pub user_id: i32,
     status: Status,
-    loc: PathBuf,
+    pub loc: PathBuf,
 }
 
 pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {

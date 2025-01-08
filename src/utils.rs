@@ -32,7 +32,7 @@ where
     .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
 }
 
-fn stream_file_to_base64(path: &str) -> io::Result<String> {
+pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
     let mut file = std::fs::File::open(path)?;
     let mut buffer = [0; 3072]; // read in chunks of 3072
     let mut base64 = String::new();

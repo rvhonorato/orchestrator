@@ -1,4 +1,5 @@
 use crate::models;
+use crate::services;
 use crate::utils;
 use axum::{
     extract::{Json, Multipart, State},
@@ -19,7 +20,9 @@ pub async fn upload(
             match field_name {
                 "file" => {
                     // Save the file to disk
-                    let filename = field.file_name().unwrap().to_string();
+                    // let filename = field.file_name().unwrap().to_string();
+
+                    let filename = "payload.zip".to_string();
 
                     job.save_to_disk(field, &filename).await?;
 
@@ -52,6 +55,9 @@ pub async fn upload(
     job.add_to_db(&pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // FIXME: This is temporary just to test the service
+    services::send(&job, services::Destinations::Jobd);
 
     Ok(Json(job))
 }
