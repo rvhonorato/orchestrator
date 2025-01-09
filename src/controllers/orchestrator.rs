@@ -26,10 +26,10 @@ pub async fn upload(
 
                     job.save_to_disk(field, &filename).await?;
 
-                    // TODO: Make sure the file is a zip file
-                    if !is_zip(&filename) {
-                        todo!()
-                    }
+                    // // TODO: Make sure the file is a zip file
+                    // if !is_zip(&filename) {
+                    //     todo!()
+                    // }
                 }
                 "data" => {
                     // Extract relevant fields from the data
@@ -57,7 +57,7 @@ pub async fn upload(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // FIXME: This is temporary just to test the service
-    orchestrator::send(&job, orchestrator::Destinations::Jobd);
+    orchestrator::send(&job, orchestrator::Destinations::Jobd).await;
 
     Ok(Json(job))
 }

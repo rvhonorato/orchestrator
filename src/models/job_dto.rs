@@ -11,7 +11,7 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             user_id INTEGER NOT NULL,
             status TEXT NOT NULL,
             loc TEXT NOT NULL,
-            dest_id TEXT NOT NULL,
+            dest_id TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     "#,

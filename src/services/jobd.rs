@@ -15,7 +15,7 @@ impl Endpoint for Jobd {
             stream_file_to_base64(j.loc.join("payload.zip").to_str().unwrap()).unwrap();
 
         let data = json!({
-            "id": "abc",
+            "id": j.id.to_string(),
             "input": input_as_base64,
             "slurml": false
         });
