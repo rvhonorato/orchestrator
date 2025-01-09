@@ -1,8 +1,7 @@
 use crate::models::job_dao::Job;
-use crate::models::ping_dto::Ping;
 use crate::models::uploadpayload_dto::UploadPayload;
-use crate::services::services;
-use crate::utils::utils;
+use crate::services::orchestrator;
+use crate::utils::io::is_zip;
 use axum::{
     extract::{Json, Multipart, State},
     http::StatusCode,
@@ -28,7 +27,7 @@ pub async fn upload(
                     job.save_to_disk(field, &filename).await?;
 
                     // TODO: Make sure the file is a zip file
-                    if !utils::is_zip(&filename) {
+                    if !is_zip(&filename) {
                         todo!()
                     }
                 }
@@ -58,13 +57,7 @@ pub async fn upload(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // FIXME: This is temporary just to test the service
-    services::send(&job, services::Destinations::Jobd);
+    orchestrator::send(&job, orchestrator::Destinations::Jobd);
 
     Ok(Json(job))
-}
-
-pub async fn ping() -> Json<Ping> {
-    Json(Ping {
-        message: "pong".to_string(),
-    })
 }

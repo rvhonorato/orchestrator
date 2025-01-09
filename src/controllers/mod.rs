@@ -1,2 +1,2 @@
-pub mod controllers;
+pub mod orchestrator;
 pub mod ping;

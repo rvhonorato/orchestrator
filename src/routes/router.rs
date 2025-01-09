@@ -1,4 +1,4 @@
-use crate::controllers::controllers::upload;
+use crate::controllers::orchestrator::upload;
 use crate::controllers::ping::ping;
 use axum::{
     routing::{get, post},
