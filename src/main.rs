@@ -1,12 +1,12 @@
 mod controllers;
+mod datasource;
 mod models;
 mod routes;
 mod services;
 mod utils;
-use crate::models::job_dao::UPLOADS_DIRECTORY;
-use crate::models::job_dto::create_jobs_table;
+use crate::datasource::db::init_db;
+use crate::datasource::fs::init_fs;
 use crate::routes::routes::create_routes;
-use sqlx::SqlitePool;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
@@ -17,18 +17,9 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
-    let pool = SqlitePool::connect("sqlite::memory:")
-        .await
-        .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+    let pool = init_db().await;
 
-    create_jobs_table(&pool)
-        .await
-        .expect("failed to create the jobs table");
-
-    match tokio::fs::create_dir(UPLOADS_DIRECTORY).await {
-        Ok(_) => tracing::info!("created uploads directory"),
-        Err(_) => tracing::warn!("uploads directory exists - using it"),
-    };
+    let _ = init_fs().await;
 
     let app = create_routes(pool);
 
