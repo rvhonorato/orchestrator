@@ -23,6 +23,7 @@ pub struct Job {
     pub user_id: i32,
     status: Status,
     pub loc: PathBuf,
+    dest_id: String,
 }
 
 pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
@@ -33,6 +34,7 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             user_id INTEGER NOT NULL,
             status TEXT NOT NULL,
             loc TEXT NOT NULL,
+            dest_id TEXT NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     "#,
@@ -54,6 +56,7 @@ impl Job {
             user_id: 0,
             status: Status::Pending,
             loc,
+            dest_id: String::new(),
         }
     }
 
@@ -101,33 +104,49 @@ impl Job {
         Ok(())
     }
 
+    pub async fn update_dest_id(
+        &mut self,
+        dest_id: String,
+        pool: &SqlitePool,
+    ) -> Result<(), sqlx::Error> {
+        let _result = sqlx::query("UPDATE jobs SET status = ? WHERE id = ?")
+            .bind(&dest_id)
+            .bind(self.id)
+            .execute(pool)
+            .await?;
+
+        self.dest_id = dest_id;
+
+        Ok(())
+    }
+
     pub fn set_user_id(&mut self, user_id: i32) {
         self.user_id = user_id;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Status {
-    Pending,
-    Processing,
-    Completed,
-    Failed,
-    Queued,
-    Unknown,
-}
-
-impl fmt::Display for Status {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Status::Pending => write!(f, "pending"),
-            Status::Processing => write!(f, "processing"),
-            Status::Completed => write!(f, "completed"),
-            Status::Failed => write!(f, "failed"),
-            Status::Queued => write!(f, "queued"),
-            Status::Unknown => write!(f, "unknown"),
-        }
-    }
-}
+// #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// pub enum Status {
+//     Pending,
+//     Processing,
+//     Completed,
+//     Failed,
+//     Queued,
+//     Unknown,
+// }
+//
+// impl fmt::Display for Status {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         match self {
+//             Status::Pending => write!(f, "pending"),
+//             Status::Processing => write!(f, "processing"),
+//             Status::Completed => write!(f, "completed"),
+//             Status::Failed => write!(f, "failed"),
+//             Status::Queued => write!(f, "queued"),
+//             Status::Unknown => write!(f, "unknown"),
+//         }
+//     }
+// }
 
 #[derive(Serialize)]
 pub struct Ping {

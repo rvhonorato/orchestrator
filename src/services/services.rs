@@ -1,4 +1,5 @@
-use crate::{models::Job, utils};
+use crate::models::job_dao::Job;
+use crate::utils::utils;
 use anyhow::Result;
 use serde_json::json;
 
@@ -55,6 +56,11 @@ impl Endpoint for Jobd {
 
         let client = reqwest::Client::new();
         let response = client.post(JOBD_UPLOAD_ENDPOINT).json(&data).send().await?;
+
+        // TODO: The response will contain a jobd specific job_id, parse it and add to the Job
+        // let jobd_id = "something";
+        // j.update_dest_id(jobd_id);
+
         Ok(response)
     }
 }

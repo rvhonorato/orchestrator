@@ -1,19 +1,20 @@
-use crate::models;
-use crate::services;
-use crate::utils;
+use crate::models::job_dao::Job;
+use crate::models::ping_dto::Ping;
+use crate::models::uploadpayload_dto::UploadPayload;
+use crate::services::services;
+use crate::utils::utils;
 use axum::{
     extract::{Json, Multipart, State},
     http::StatusCode,
 };
 use sqlx::SqlitePool;
-
 pub async fn upload(
     State(pool): State<SqlitePool>,
     mut multipart: Multipart,
-) -> Result<Json<models::Job>, (StatusCode, String)> {
+) -> Result<Json<Job>, (StatusCode, String)> {
     let mut user_data = None;
     // Create an empty job
-    let mut job = models::Job::new();
+    let mut job = Job::new();
 
     while let Ok(Some(field)) = multipart.next_field().await {
         if let Some(field_name) = field.name() {
@@ -40,7 +41,7 @@ pub async fn upload(
 
                     // Map the json to the `UploadPayload` struct
                     user_data = Some(
-                        serde_json::from_str::<models::UploadPayload>(&data)
+                        serde_json::from_str::<UploadPayload>(&data)
                             .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
                     );
                 }
@@ -62,8 +63,8 @@ pub async fn upload(
     Ok(Json(job))
 }
 
-pub async fn ping() -> Json<models::Ping> {
-    Json(models::Ping {
+pub async fn ping() -> Json<Ping> {
+    Json(Ping {
         message: "pong".to_string(),
     })
 }

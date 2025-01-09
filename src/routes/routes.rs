@@ -1,4 +1,5 @@
-use crate::controllers;
+use crate::controllers::controllers::upload;
+use crate::controllers::ping::ping;
 use axum::{
     routing::{get, post},
     Router,
@@ -7,7 +8,6 @@ use sqlx::SqlitePool;
 use tower_http::trace;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
-
 #[derive(Clone)]
 struct AppState {
     db: SqlitePool,
@@ -15,8 +15,8 @@ struct AppState {
 pub fn create_routes(pool: SqlitePool) -> Router {
     let state = AppState { db: pool };
     Router::new()
-        .route("/", get(controllers::ping))
-        .route("/upload", post(controllers::upload))
+        .route("/", get(ping))
+        .route("/upload", post(upload))
         .with_state(state.db)
         .layer(
             TraceLayer::new_for_http()
