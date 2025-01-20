@@ -57,7 +57,18 @@ pub async fn upload(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // FIXME: This is temporary just to test the service
-    orchestrator::send(&job, orchestrator::Destinations::Jobd).await;
+    let upload_id = orchestrator::send(&job, orchestrator::Destinations::Jobd).await;
+    // Match on the Result instead of using `?`
+    let upload_id = match upload_id {
+        Ok(id) => id,
+        Err(err) => {
+            // Handle the error here, either log it or return a custom error
+            return Err((reqwest::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
+            // or another appropriate error
+        }
+    };
+
+    job.update_dest_id(upload_id, &pool);
 
     Ok(Json(job))
 }

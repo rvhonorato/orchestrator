@@ -25,4 +25,7 @@ Cargo.lock
 
 # project
 uploads
-dev
+
+dev/data
+dev/db
+dev/jobd
