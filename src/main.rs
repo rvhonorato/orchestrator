@@ -16,6 +16,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize a logger
     tracing_subscriber::fmt()
         .with_target(false)
+        .with_max_level(tracing::Level::DEBUG)
         .compact()
         .init();
 

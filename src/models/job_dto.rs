@@ -1,7 +1,6 @@
-use sqlx::SqlitePool;
-
 use crate::models::job_dao::Job;
-use crate::models::status_dto::Status;
+use sqlx::SqlitePool;
+// use crate::models::status_dto::Status;
 
 pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(
@@ -36,21 +35,21 @@ impl Job {
         Ok(())
     }
 
-    pub async fn update_status(
-        &mut self,
-        status: Status,
-        pool: &SqlitePool,
-    ) -> Result<(), sqlx::Error> {
-        let _result = sqlx::query("UPDATE jobs SET status = ? WHERE id = ?")
-            .bind(status.to_string())
-            .bind(self.id)
-            .execute(pool)
-            .await?;
-
-        self.status = status;
-
-        Ok(())
-    }
+    // pub async fn update_status(
+    //     &mut self,
+    //     status: Status,
+    //     pool: &SqlitePool,
+    // ) -> Result<(), sqlx::Error> {
+    //     let _result = sqlx::query("UPDATE jobs SET status = ? WHERE id = ?")
+    //         .bind(status.to_string())
+    //         .bind(self.id)
+    //         .execute(pool)
+    //         .await?;
+    //
+    //     self.status = status;
+    //
+    //     Ok(())
+    // }
 
     pub async fn update_dest_id(
         &mut self,

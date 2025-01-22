@@ -1,12 +1,13 @@
 use crate::models::job_dao::Job;
 use crate::models::uploadpayload_dto::UploadPayload;
 use crate::services::orchestrator;
-use crate::utils::io::is_zip;
 use axum::{
     extract::{Json, Multipart, State},
     http::StatusCode,
 };
 use sqlx::SqlitePool;
+use tracing::error;
+
 pub async fn upload(
     State(pool): State<SqlitePool>,
     mut multipart: Multipart,
@@ -56,19 +57,26 @@ pub async fn upload(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
+    // -------------------------------------------------------
     // FIXME: This is temporary just to test the service
-    let upload_id = orchestrator::send(&job, orchestrator::Destinations::Jobd).await;
-    // Match on the Result instead of using `?`
-    let upload_id = match upload_id {
+    let upload_id = match orchestrator::send(&job, orchestrator::Destinations::Jobd).await {
         Ok(id) => id,
-        Err(err) => {
-            // Handle the error here, either log it or return a custom error
-            return Err((reqwest::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
-            // or another appropriate error
+        // error coming from the destination
+        Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
+            return Err((status, "".to_string()))
+        }
+        // generic error
+        Err(e) => {
+            error!("{:?}", e);
+            return Err((
+                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                "something went wrong while trying to send to the destination".to_string(),
+            ));
         }
     };
+    // -------------------------------------------------------
 
-    job.update_dest_id(upload_id, &pool);
+    let _ = job.update_dest_id(upload_id, &pool).await;
 
     Ok(Json(job))
 }

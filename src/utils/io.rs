@@ -47,26 +47,26 @@ pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
     Ok(base64)
 }
 
-fn to_base64(inp: &str) -> String {
-    STANDARD.encode(inp)
-}
-
-fn from_base64(inp: String) -> String {
-    match STANDARD.decode(inp) {
-        Ok(v) => String::from_utf8(v).expect("Could not decode"),
-        Err(_) => "".to_string(),
-    }
-}
-
-pub fn is_zip(path: &str) -> bool {
-    if let Ok(mut file) = std::fs::File::open(path) {
-        let mut buffer = [0u8; 4];
-        if file.read_exact(&mut buffer).is_ok() {
-            return &buffer == b"PK\x03\x04";
-        }
-    }
-    false
-}
+// fn to_base64(inp: &str) -> String {
+//     STANDARD.encode(inp)
+// }
+//
+// fn from_base64(inp: String) -> String {
+//     match STANDARD.decode(inp) {
+//         Ok(v) => String::from_utf8(v).expect("Could not decode"),
+//         Err(_) => "".to_string(),
+//     }
+// }
+//
+// pub fn is_zip(path: &str) -> bool {
+//     if let Ok(mut file) = std::fs::File::open(path) {
+//         let mut buffer = [0u8; 4];
+//         if file.read_exact(&mut buffer).is_ok() {
+//             return &buffer == b"PK\x03\x04";
+//         }
+//     }
+//     false
+// }
 
 #[cfg(test)]
 mod tests {
@@ -84,30 +84,30 @@ mod tests {
         assert_eq!(result, "aGVsbG8=")
     }
 
-    #[test]
-    fn test_to_base64() {
-        let result = to_base64("hello");
-        assert_eq!(result, "aGVsbG8=")
-    }
+    // #[test]
+    // fn test_to_base64() {
+    //     let result = to_base64("hello");
+    //     assert_eq!(result, "aGVsbG8=")
+    // }
 
-    #[test]
-    fn test_from_base64() {
-        let result = from_base64("aGVsbG8=".to_string());
-        assert_eq!(result, "hello")
-    }
+    // #[test]
+    // fn test_from_base64() {
+    //     let result = from_base64("aGVsbG8=".to_string());
+    //     assert_eq!(result, "hello")
+    // }
 
-    #[test]
-    fn test_is_zip_false() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file.write_all(b"hello");
-        let temp_path = temp_file.path().to_str().unwrap();
-        let result = is_zip(temp_path);
-        assert!(!result)
-    }
+    // #[test]
+    // fn test_is_zip_false() {
+    //     let mut temp_file = NamedTempFile::new().unwrap();
+    //     let _ = temp_file.write_all(b"hello");
+    //     let temp_path = temp_file.path().to_str().unwrap();
+    //     let result = is_zip(temp_path);
+    //     assert!(!result)
+    // }
 
-    #[test]
-    fn test_is_zip_true() {
-        let result = is_zip("tests/file.zip");
-        assert!(result)
-    }
+    // #[test]
+    // fn test_is_zip_true() {
+    //     let result = is_zip("tests/file.zip");
+    //     assert!(result)
+    // }
 }

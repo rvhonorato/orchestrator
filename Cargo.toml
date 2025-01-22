@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 tokio = { version = "1", features = ["full"] }
-axum = { version = "0.7", features = ["multipart"] }
+axum = { version = "0.8", features = ["multipart"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tower-http = { version = "0.6", features = ["trace"] }
@@ -24,3 +24,4 @@ sqlx = { version = "0.8", features = [
   "macros",
 ] }
 reqwest = { version = "0.12.12", features = ["json"] }
+thiserror = "2"
