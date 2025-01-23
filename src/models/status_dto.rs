@@ -23,3 +23,16 @@ impl fmt::Display for Status {
         }
     }
 }
+
+impl Status {
+    pub fn from_string(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "pending" => Status::Pending,
+            "processing" => Status::Processing,
+            "completed" => Status::Completed,
+            "failed" => Status::Failed,
+            "queued" => Status::Queued,
+            _ => Status::Unknown,
+        }
+    }
+}

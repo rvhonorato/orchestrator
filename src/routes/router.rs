@@ -1,4 +1,4 @@
-use crate::controllers::orchestrator::upload;
+use crate::controllers::orchestrator::{download, upload};
 use crate::controllers::ping::ping;
 use axum::{
     routing::{get, post},
@@ -17,6 +17,7 @@ pub fn create_routes(pool: SqlitePool) -> Router {
     Router::new()
         .route("/", get(ping))
         .route("/upload", post(upload))
+        .route("/download/{id}", get(download))
         .with_state(state.db)
         .layer(
             TraceLayer::new_for_http()

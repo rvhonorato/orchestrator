@@ -47,6 +47,17 @@ pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
     Ok(base64)
 }
 
+pub fn base64_to_file(base64_content: &str, output_path: PathBuf) -> io::Result<Vec<u8>> {
+    let decoded_bytes = STANDARD
+        .decode(base64_content)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid base64"))?;
+
+    std::fs::create_dir_all(output_path.parent().unwrap())?;
+    std::fs::write(&output_path, &decoded_bytes)?;
+
+    Ok(decoded_bytes)
+}
+
 // fn to_base64(inp: &str) -> String {
 //     STANDARD.encode(inp)
 // }

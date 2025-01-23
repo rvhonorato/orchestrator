@@ -1,12 +1,38 @@
 use crate::models::job_dao::Job;
+use crate::models::status_dto::Status;
 use crate::models::uploadpayload_dto::UploadPayload;
 use crate::services::orchestrator;
 use axum::{
-    extract::{Json, Multipart, State},
+    extract::{Json, Multipart, Path, State},
     http::StatusCode,
 };
 use sqlx::SqlitePool;
-use tracing::error;
+use tracing::{debug, error};
+
+pub async fn download(
+    State(pool): State<SqlitePool>,
+    Path(id): Path<i32>,
+) -> Result<Vec<u8>, StatusCode> {
+    let mut job = Job::new();
+    match job.retrieve_id(id, &pool).await {
+        Ok(_) => {
+            debug!("{:?}", job);
+            match orchestrator::retrieve(&job, orchestrator::Destinations::Jobd).await {
+                Ok(f) => Ok(f),
+                Err(orchestrator::DownloadError::NotFound) => Err(StatusCode::NOT_FOUND),
+                Err(orchestrator::DownloadError::NotReady) => Err(StatusCode::NO_CONTENT),
+                // TODO: Implement this
+                Err(orchestrator::DownloadError::RequestFailed(e)) => panic!("{:?}", e),
+                // generic error
+                Err(e) => {
+                    error!("{:?}", e);
+                    Err(reqwest::StatusCode::INTERNAL_SERVER_ERROR)
+                }
+            }
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
+}
 
 pub async fn upload(
     State(pool): State<SqlitePool>,
@@ -77,6 +103,7 @@ pub async fn upload(
     // -------------------------------------------------------
 
     let _ = job.update_dest_id(upload_id, &pool).await;
-
+    let _ = job.update_status(Status::Queued, &pool).await;
+    debug!("{:?}", job);
     Ok(Json(job))
 }

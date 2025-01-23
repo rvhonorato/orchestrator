@@ -1,11 +1,16 @@
 use crate::config::constants;
+use crate::config::constants::JOBD_DOWNLOAD_ENDPOINT;
 use crate::models::job_dao::Job;
 use crate::services::orchestrator::Endpoint;
 use crate::services::orchestrator::UploadError;
+use crate::utils::io::base64_to_file;
 use crate::utils::io::stream_file_to_base64;
 use axum::http::StatusCode;
 use serde_json::json;
 use tracing::debug;
+use uuid::Uuid;
+
+use super::orchestrator::DownloadError;
 //-------------------------
 // jobd
 //-------------------------
@@ -26,8 +31,8 @@ struct JobdResponse {
     // last_updated: String,
     // #[serde(rename = "Message")]
     // message: String,
-    // #[serde(rename = "Output")]
-    // output: String,
+    #[serde(rename = "Output")]
+    output: String,
     // #[serde(rename = "Path")]
     // path: String,
     // #[serde(rename = "SlurmID")]
@@ -45,7 +50,7 @@ impl Endpoint for Jobd {
             stream_file_to_base64(path.to_str().ok_or(UploadError::InvalidPath)?)?;
 
         let data = json!({
-            "id": j.id.to_string(),
+            "id": Uuid::new_v4().to_string(),
             "input": input_as_base64,
             "slurml": false
         });
@@ -75,12 +80,34 @@ impl Endpoint for Jobd {
         }
     }
 
-    // async fn download(&self, j: &Job) -> Result<reqwest::Response, reqwest::Error> {
-    //     let url = constants::JOBD_DOWNLOAD_ENDPOINT.to_string() + &j.id.to_string();
-    //
-    //     let client = reqwest::Client::new();
-    //     let response = client.get(url).send().await?;
-    //
-    //     Ok(response)
-    // }
+    async fn download(&self, j: &Job) -> Result<Vec<u8>, DownloadError> {
+        let client = reqwest::Client::new();
+        let url = format!("{}/{}", JOBD_DOWNLOAD_ENDPOINT, j.dest_id);
+        debug!("{:?}", url);
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(DownloadError::RequestFailed)?;
+        match response.status() {
+            StatusCode::OK => {
+                let body = response
+                    .text()
+                    .await
+                    .map_err(DownloadError::ResponseReadFailed)?;
+
+                let jobd_response = serde_json::from_str::<JobdResponse>(&body)
+                    .map_err(DownloadError::DeserializationFailed)?;
+
+                let output_as_base64 = jobd_response.output;
+                let output_path = j.loc.join("output.zip");
+                match base64_to_file(&output_as_base64, output_path) {
+                    Ok(output) => Ok(output),
+                    Err(_) => Err(DownloadError::InvalidPath),
+                }
+            }
+            StatusCode::ACCEPTED => Err(DownloadError::NotReady),
+            status => Err(DownloadError::UnexpectedStatus(status)),
+        }
+    }
 }
