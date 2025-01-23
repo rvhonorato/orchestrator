@@ -8,8 +8,10 @@ mod utils;
 use crate::datasource::db::init_db;
 use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
+use services::tasks::scheduler;
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
+use tokio_schedule::{every, Job};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -26,8 +28,14 @@ async fn main() -> anyhow::Result<()> {
     // Initialize the filesystem
     let _ = init_fs().await;
 
+    // Create a scheduled job
+    let scheduled_task = every(1).second().perform(|| {
+        let pool_clone = pool.clone();
+        async move { scheduler(pool_clone).await }
+    });
+
     // Create app
-    let app = create_routes(pool);
+    let app = create_routes(pool.clone());
 
     // Initialize socket
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
@@ -35,8 +43,10 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(addr).await?;
 
-    // Serve the app
-    axum::serve(listener, app.into_make_service()).await?;
+    tokio::select! {
+        _ = scheduled_task => {},
+        _ = axum::serve(listener, app.into_make_service()) => {},
+    }
 
     Ok(())
 }

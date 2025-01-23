@@ -28,3 +28,4 @@ thiserror = "2"
 mockall = "0.13"
 tower = { version = "0.5", features = ["util"] }
 hyper = { version = "1.5", features = ["full"] }
+tokio_schedule = "0.3"

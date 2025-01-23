@@ -18,7 +18,10 @@ pub async fn download(
         Ok(_) => {
             debug!("{:?}", job);
             match orchestrator::retrieve(&job, orchestrator::Destinations::Jobd).await {
-                Ok(f) => Ok(f),
+                Ok(f) => {
+                    let _ = job.update_status(Status::Completed, &pool).await;
+                    Ok(f)
+                }
                 Err(orchestrator::DownloadError::NotFound) => Err(StatusCode::NOT_FOUND),
                 Err(orchestrator::DownloadError::NotReady) => Err(StatusCode::NO_CONTENT),
                 // TODO: Implement this
@@ -83,27 +86,28 @@ pub async fn upload(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // -------------------------------------------------------
-    // FIXME: This is temporary just to test the service
-    let upload_id = match orchestrator::send(&job, orchestrator::Destinations::Jobd).await {
-        Ok(id) => id,
-        // error coming from the destination
-        Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
-            return Err((status, "".to_string()))
-        }
-        // generic error
-        Err(e) => {
-            error!("{:?}", e);
-            return Err((
-                reqwest::StatusCode::INTERNAL_SERVER_ERROR,
-                "something went wrong while trying to send to the destination".to_string(),
-            ));
-        }
-    };
-    // -------------------------------------------------------
-
-    let _ = job.update_dest_id(upload_id, &pool).await;
     let _ = job.update_status(Status::Queued, &pool).await;
-    debug!("{:?}", job);
+    // // -------------------------------------------------------
+    // // FIXME: This is temporary just to test the service
+    // let upload_id = match orchestrator::send(&job, orchestrator::Destinations::Jobd).await {
+    //     Ok(id) => id,
+    //     // error coming from the destination
+    //     Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
+    //         return Err((status, "".to_string()))
+    //     }
+    //     // generic error
+    //     Err(e) => {
+    //         error!("{:?}", e);
+    //         return Err((
+    //             reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+    //             "something went wrong while trying to send to the destination".to_string(),
+    //         ));
+    //     }
+    // };
+    //
+    // let _ = job.update_dest_id(upload_id, &pool).await;
+    // let _ = job.update_status(Status::Queued, &pool).await;
+    // debug!("{:?}", job);
+    // -------------------------------------------------------
     Ok(Json(job))
 }
