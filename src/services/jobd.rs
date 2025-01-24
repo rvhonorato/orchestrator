@@ -80,7 +80,7 @@ impl Endpoint for Jobd {
         }
     }
 
-    async fn download(&self, j: &Job) -> Result<Vec<u8>, DownloadError> {
+    async fn download(&self, j: &Job) -> Result<(), DownloadError> {
         let client = reqwest::Client::new();
         let url = format!("{}/{}", JOBD_DOWNLOAD_ENDPOINT, j.dest_id);
         debug!("{:?}", url);
@@ -102,7 +102,7 @@ impl Endpoint for Jobd {
                 let output_as_base64 = jobd_response.output;
                 let output_path = j.loc.join("output.zip");
                 match base64_to_file(&output_as_base64, output_path) {
-                    Ok(output) => Ok(output),
+                    Ok(_) => Ok(()),
                     Err(_) => Err(DownloadError::InvalidPath),
                 }
             }

@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::{body::Bytes, BoxError};
 use futures::Stream;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use uuid::Uuid;
 
@@ -46,5 +47,11 @@ impl Job {
         let full_path = std::path::Path::join(&self.loc, filename);
         stream_to_file(full_path, stream).await?;
         Ok(())
+    }
+    pub fn download(self) -> Vec<u8> {
+        let mut file = fs::File::open(self.loc.join("output.zip")).unwrap();
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).unwrap();
+        buffer
     }
 }

@@ -44,7 +44,7 @@ pub async fn send(job: &Job, dest: Destinations) -> Result<String, UploadError> 
     target.upload(job).await
 }
 
-pub async fn retrieve(job: &Job, dest: Destinations) -> Result<Vec<u8>, DownloadError> {
+pub async fn retrieve(job: &Job, dest: Destinations) -> Result<(), DownloadError> {
     if job.id == 0 {
         Err(DownloadError::NotFound)
     } else {
@@ -72,5 +72,5 @@ pub enum Destinations {
 pub trait Endpoint {
     async fn upload(&self, j: &Job) -> Result<String, UploadError>;
     // async fn status(&self, j: &Job) -> Result<reqwest::Response, reqwest::Error>;
-    async fn download(&self, j: &Job) -> Result<Vec<u8>, DownloadError>;
+    async fn download(&self, j: &Job) -> Result<(), DownloadError>;
 }

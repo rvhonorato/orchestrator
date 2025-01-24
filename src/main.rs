@@ -8,7 +8,7 @@ mod utils;
 use crate::datasource::db::init_db;
 use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
-use services::tasks::scheduler;
+use services::tasks::{getter, sender};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_schedule::{every, Job};
@@ -18,7 +18,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize a logger
     tracing_subscriber::fmt()
         .with_target(false)
-        .with_max_level(tracing::Level::DEBUG)
+        // .with_max_level(tracing::Level::DEBUG)
         .compact()
         .init();
 
@@ -29,9 +29,14 @@ async fn main() -> anyhow::Result<()> {
     let _ = init_fs().await;
 
     // Create a scheduled job
-    let scheduled_task = every(1).second().perform(|| {
+    let sender_task = every(10).millisecond().perform(|| {
         let pool_clone = pool.clone();
-        async move { scheduler(pool_clone).await }
+        async move { sender(pool_clone).await }
+    });
+
+    let getter_task = every(500).millisecond().perform(|| {
+        let pool_clone = pool.clone();
+        async move { getter(pool_clone).await }
     });
 
     // Create app
@@ -44,7 +49,8 @@ async fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr).await?;
 
     tokio::select! {
-        _ = scheduled_task => {},
+        _ = sender_task => {},
+        _ = getter_task => {},
         _ = axum::serve(listener, app.into_make_service()) => {},
     }
 
