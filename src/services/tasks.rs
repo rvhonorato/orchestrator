@@ -8,17 +8,20 @@ use super::orchestrator::{Destinations, DownloadError};
 pub async fn sender(pool: SqlitePool) {
     let mut queue = Queue::new();
     if queue.load(Status::Queued, &pool).await.is_ok() {
+        // info!("{:?}", queue.jobs.len());
         let futures = queue
             .jobs
             .into_iter()
             .map(|mut j| {
+                // info!("{:?}", j);
                 let pool_clone = pool.clone();
                 tokio::spawn(async move {
                     j.update_status(Status::Processing, &pool_clone).await.ok();
 
                     match orchestrator::send(&j, orchestrator::Destinations::Jobd).await {
                         Ok(upload_id) => {
-                            info!("submitting: {:?}", j);
+                            // info!("submitting: {:?}", j);
+                            j.update_status(Status::Submitted, &pool_clone).await.ok();
                             j.update_dest_id(upload_id, &pool_clone).await.ok();
                             debug!("{:?}", j);
                         }
@@ -40,7 +43,11 @@ pub async fn sender(pool: SqlitePool) {
 
 pub async fn getter(pool: SqlitePool) {
     let mut queue = Queue::new();
-    if queue.load(Status::Processing, &pool).await.is_ok() {
+    if queue
+        .list_per_status(Status::Submitted, &pool)
+        .await
+        .is_ok()
+    {
         let futures = queue
             .jobs
             .into_iter()

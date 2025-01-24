@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
     let _ = init_fs().await;
 
     // Create a scheduled job
-    let sender_task = every(10).millisecond().perform(|| {
+    let sender_task = every(500).millisecond().perform(|| {
         let pool_clone = pool.clone();
         async move { sender(pool_clone).await }
     });

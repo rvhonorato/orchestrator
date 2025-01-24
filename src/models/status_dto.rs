@@ -8,6 +8,7 @@ pub enum Status {
     Completed,
     Failed,
     Queued,
+    Submitted,
     Unknown,
 }
 
@@ -19,6 +20,7 @@ impl fmt::Display for Status {
             Status::Completed => write!(f, "completed"),
             Status::Failed => write!(f, "failed"),
             Status::Queued => write!(f, "queued"),
+            Status::Submitted => write!(f, "submitted"),
             Status::Unknown => write!(f, "unknown"),
         }
     }
@@ -32,6 +34,7 @@ impl Status {
             "completed" => Status::Completed,
             "failed" => Status::Failed,
             "queued" => Status::Queued,
+            "submitted" => Status::Submitted,
             _ => Status::Unknown,
         }
     }
