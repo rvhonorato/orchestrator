@@ -10,6 +10,7 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         CREATE TABLE IF NOT EXISTS jobs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
+            service TEXT NOT NULL,
             status TEXT NOT NULL,
             loc TEXT NOT NULL,
             dest_id TEXT,
@@ -24,12 +25,14 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
 
 impl Job {
     pub async fn add_to_db(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-        let result = sqlx::query("INSERT INTO jobs (user_id, loc, status) VALUES (?, ?, ?)")
-            .bind(self.user_id)
-            .bind(self.loc.to_str())
-            .bind(self.status.to_string())
-            .execute(pool)
-            .await?;
+        let result =
+            sqlx::query("INSERT INTO jobs (user_id, loc, status, service) VALUES (?, ?, ?, ?)")
+                .bind(self.user_id)
+                .bind(self.loc.to_str())
+                .bind(self.status.to_string())
+                .bind(self.service.to_string())
+                .execute(pool)
+                .await?;
 
         let job_id = result.last_insert_rowid();
         self.id = job_id as i32;
@@ -67,10 +70,6 @@ impl Job {
         self.dest_id = dest_id;
 
         Ok(())
-    }
-
-    pub fn set_user_id(&mut self, user_id: i32) {
-        self.user_id = user_id;
     }
 
     pub async fn retrieve_id(&mut self, id: i32, pool: &SqlitePool) -> Result<(), sqlx::Error> {

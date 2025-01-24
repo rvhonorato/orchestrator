@@ -8,6 +8,7 @@ mod utils;
 use crate::datasource::db::init_db;
 use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
+use config::loader::Config;
 use services::tasks::{getter, sender};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
@@ -22,6 +23,9 @@ async fn main() -> anyhow::Result<()> {
         .compact()
         .init();
 
+    // Load the configuration
+    let config = Config::new("config.yaml").unwrap();
+
     // Initialize the database
     let pool = init_db().await;
 
@@ -31,12 +35,14 @@ async fn main() -> anyhow::Result<()> {
     // Create a scheduled job
     let sender_task = every(500).millisecond().perform(|| {
         let pool_clone = pool.clone();
-        async move { sender(pool_clone).await }
+        let config_clone = config.clone();
+        async move { sender(pool_clone, config_clone).await }
     });
 
     let getter_task = every(500).millisecond().perform(|| {
         let pool_clone = pool.clone();
-        async move { getter(pool_clone).await }
+        let config_clone = config.clone();
+        async move { getter(pool_clone, config_clone).await }
     });
 
     // Create app

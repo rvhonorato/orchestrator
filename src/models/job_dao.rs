@@ -13,6 +13,7 @@ use uuid::Uuid;
 pub struct Job {
     pub id: i32,
     pub user_id: i32,
+    pub service: String,
     pub status: Status,
     pub loc: PathBuf,
     pub dest_id: String,
@@ -23,6 +24,7 @@ impl Job {
         Job {
             id: 0,
             user_id: 0,
+            service: String::new(),
             status: Status::Unknown,
             loc: PathBuf::new(),
             dest_id: String::new(),
@@ -48,10 +50,19 @@ impl Job {
         stream_to_file(full_path, stream).await?;
         Ok(())
     }
+
     pub fn download(self) -> Vec<u8> {
         let mut file = fs::File::open(self.loc.join("output.zip")).unwrap();
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).unwrap();
         buffer
+    }
+
+    pub fn set_service(&mut self, service: String) {
+        self.service = service
+    }
+
+    pub fn set_user_id(&mut self, user_id: i32) {
+        self.user_id = user_id;
     }
 }

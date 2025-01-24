@@ -1,5 +1,3 @@
-use crate::config::constants;
-use crate::config::constants::JOBD_DOWNLOAD_ENDPOINT;
 use crate::models::job_dao::Job;
 use crate::services::orchestrator::Endpoint;
 use crate::services::orchestrator::UploadError;
@@ -44,7 +42,7 @@ struct JobdResponse {
 }
 
 impl Endpoint for Jobd {
-    async fn upload(&self, j: &Job) -> Result<String, UploadError> {
+    async fn upload(&self, j: &Job, url: &str) -> Result<String, UploadError> {
         let path = j.loc.join("payload.zip");
         let input_as_base64 =
             stream_file_to_base64(path.to_str().ok_or(UploadError::InvalidPath)?)?;
@@ -57,7 +55,7 @@ impl Endpoint for Jobd {
 
         let client = reqwest::Client::new();
         let response = client
-            .post(constants::JOBD_UPLOAD_ENDPOINT)
+            .post(url)
             .json(&data)
             .send()
             .await
@@ -80,9 +78,9 @@ impl Endpoint for Jobd {
         }
     }
 
-    async fn download(&self, j: &Job) -> Result<(), DownloadError> {
+    async fn download(&self, j: &Job, url: &str) -> Result<(), DownloadError> {
         let client = reqwest::Client::new();
-        let url = format!("{}/{}", JOBD_DOWNLOAD_ENDPOINT, j.dest_id);
+        let url = format!("{}/{}", url, j.dest_id);
         debug!("{:?}", url);
         let response = client
             .get(&url)

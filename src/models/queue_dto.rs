@@ -23,6 +23,7 @@ impl Queue {
                 Job {
                     id: row.get("id"),
                     user_id: row.get("user_id"),
+                    service: row.get("service"),
                     status: Status::from_string(&status),
                     loc: PathBuf::from(loc),
                     dest_id: row.get("dest_id"),
@@ -71,6 +72,7 @@ impl Queue {
                 Job {
                     id: row.get("id"),
                     user_id: row.get("user_id"),
+                    service: row.get("service"),
                     status: Status::from_string(&status),
                     loc: PathBuf::from(loc),
                     dest_id: row.get("dest_id"),

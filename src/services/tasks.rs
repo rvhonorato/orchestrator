@@ -1,11 +1,12 @@
+use crate::config::loader::Config;
 use crate::models::{queue_dao::Queue, status_dto::Status};
 use crate::services::orchestrator;
 use sqlx::SqlitePool;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
-use super::orchestrator::{Destinations, DownloadError};
+use super::orchestrator::DownloadError;
 
-pub async fn sender(pool: SqlitePool) {
+pub async fn sender(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new();
     if queue.load(Status::Queued, &pool).await.is_ok() {
         // info!("{:?}", queue.jobs.len());
@@ -15,10 +16,11 @@ pub async fn sender(pool: SqlitePool) {
             .map(|mut j| {
                 // info!("{:?}", j);
                 let pool_clone = pool.clone();
+                let config_clone = config.clone();
                 tokio::spawn(async move {
                     j.update_status(Status::Processing, &pool_clone).await.ok();
 
-                    match orchestrator::send(&j, orchestrator::Destinations::Jobd).await {
+                    match orchestrator::send(&j, &config_clone).await {
                         Ok(upload_id) => {
                             // info!("submitting: {:?}", j);
                             j.update_status(Status::Submitted, &pool_clone).await.ok();
@@ -41,7 +43,7 @@ pub async fn sender(pool: SqlitePool) {
     }
 }
 
-pub async fn getter(pool: SqlitePool) {
+pub async fn getter(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new();
     if queue
         .list_per_status(Status::Submitted, &pool)
@@ -53,8 +55,9 @@ pub async fn getter(pool: SqlitePool) {
             .into_iter()
             .map(|mut j| {
                 let pool_clone = pool.clone();
+                let config_clone = config.clone();
                 tokio::spawn(async move {
-                    let result = orchestrator::retrieve(&j, Destinations::Jobd).await;
+                    let result = orchestrator::retrieve(&j, &config_clone).await;
                     match result {
                         Ok(_) => {
                             j.update_status(Status::Completed, &pool_clone).await.ok();

@@ -67,6 +67,7 @@ pub async fn upload(
     }
     let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
     job.set_user_id(user_data.user_id);
+    job.set_service(user_data.service);
 
     // Add it to the database and handle potential errors
     job.add_to_db(&pool)

@@ -1,3 +1,4 @@
+use crate::config::loader::Config;
 use crate::models::job_dao::Job;
 use crate::services::jobd::Jobd;
 use anyhow::Result;
@@ -5,6 +6,8 @@ use axum::http::StatusCode;
 
 #[derive(Debug, thiserror::Error)]
 pub enum UploadError {
+    #[error("Invalid service")]
+    InvalidService,
     #[error("Invalid path")]
     InvalidPath,
     #[error("Failed to encode file: {0}")]
@@ -20,6 +23,8 @@ pub enum UploadError {
 }
 #[derive(Debug, thiserror::Error)]
 pub enum DownloadError {
+    #[error("Invalid service")]
+    InvalidService,
     #[error("Not found")]
     NotFound,
     #[error("Invalid path")]
@@ -36,23 +41,37 @@ pub enum DownloadError {
     UnexpectedStatus(StatusCode),
 }
 
-pub async fn send(job: &Job, dest: Destinations) -> Result<String, UploadError> {
+pub async fn send(job: &Job, config: &Config) -> Result<String, UploadError> {
+    // TODO: One service may have many destinations, figure that out here
+    let dest = Destinations::Jobd;
     let target = match dest {
         Destinations::Jobd => Jobd,
     };
 
-    target.upload(job).await
+    match config.get_upload_url(&job.service) {
+        Some(url) => Ok(target.upload(job, url).await?),
+        None => Err(UploadError::InvalidService),
+    }
 }
 
-pub async fn retrieve(job: &Job, dest: Destinations) -> Result<(), DownloadError> {
+pub async fn retrieve(job: &Job, config: &Config) -> Result<(), DownloadError> {
     if job.id == 0 {
         Err(DownloadError::NotFound)
     } else {
+        // let target = match dest {
+        //     Destinations::Jobd => Jobd,
+        // };
+        // TODO: One service may have many destinations, figure that out here
+        let dest = Destinations::Jobd;
         let target = match dest {
             Destinations::Jobd => Jobd,
         };
 
-        target.download(job).await
+        // target.download(job).await
+        match config.get_download_url(&job.service) {
+            Some(url) => Ok(target.download(job, url).await?),
+            None => Err(DownloadError::InvalidService),
+        }
     }
 }
 
@@ -70,7 +89,7 @@ pub enum Destinations {
 
 // These are traits that all Desinations need to have
 pub trait Endpoint {
-    async fn upload(&self, j: &Job) -> Result<String, UploadError>;
+    async fn upload(&self, j: &Job, url: &str) -> Result<String, UploadError>;
     // async fn status(&self, j: &Job) -> Result<reqwest::Response, reqwest::Error>;
-    async fn download(&self, j: &Job) -> Result<(), DownloadError>;
+    async fn download(&self, j: &Job, url: &str) -> Result<(), DownloadError>;
 }
