@@ -1,4 +1,0 @@
-services:
-  - name: generic
-    upload_url: http://localhost:8080/api/upload
-    download_url: http://localhost:8080/api/get
