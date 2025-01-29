@@ -3,6 +3,7 @@ use crate::models::job_dao::Job;
 use crate::services::jobd::Jobd;
 use anyhow::Result;
 use axum::http::StatusCode;
+use tracing::info;
 
 #[derive(Debug, thiserror::Error)]
 pub enum UploadError {
@@ -47,6 +48,8 @@ pub async fn send(job: &Job, config: &Config) -> Result<String, UploadError> {
     let target = match dest {
         Destinations::Jobd => Jobd,
     };
+
+    info!("{:?}", job);
 
     match config.get_upload_url(&job.service) {
         Some(url) => Ok(target.upload(job, url).await?),
