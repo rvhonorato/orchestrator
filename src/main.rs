@@ -10,7 +10,7 @@ use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
 use config::loader::Config;
 use services::tasks::{getter, sender};
-use std::net::SocketAddr;
+use std::{env, net::SocketAddr};
 use tokio::net::TcpListener;
 use tokio_schedule::{every, Job};
 
@@ -24,7 +24,9 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // Load the configuration
-    let config = Config::new("config.yaml").unwrap();
+    let config_path =
+        env::var("ORCHESTRATOR_CONFIG_PATH").expect("ORCHESTRATOR_CONFIG_PATH not defined");
+    let config = Config::new(&config_path).unwrap();
 
     // Initialize the database
     let pool = init_db().await;
@@ -49,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     let app = create_routes(pool.clone());
 
     // Initialize socket
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     tracing::info!("listening on {}", addr);
 
     let listener = TcpListener::bind(addr).await?;

@@ -1,9 +1,9 @@
-use crate::config::constants;
 use crate::models::status_dto::Status;
 use crate::utils::io::stream_to_file;
 use axum::http::StatusCode;
 use axum::{body::Bytes, BoxError};
 use futures::Stream;
+use std::env;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -40,8 +40,11 @@ impl Job {
         S: Stream<Item = Result<Bytes, E>>,
         E: Into<BoxError>,
     {
-        self.loc =
-            std::path::Path::new(constants::UPLOADS_DIRECTORY).join(Uuid::new_v4().to_string());
+        let wd_path =
+            env::var("ORCHESTRATOR_DATA_PATH").expect("ORCHESTRATOR_DATA_PATH not defined");
+        let upload_path = format!("{}/uploads", wd_path);
+
+        self.loc = std::path::Path::new(&upload_path).join(Uuid::new_v4().to_string());
         match fs::create_dir(&self.loc) {
             Ok(_) => (),
             Err(e) => println!("could not create directory {}", e),
