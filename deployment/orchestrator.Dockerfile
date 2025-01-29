@@ -3,7 +3,11 @@ FROM rust:1.84 AS build
 WORKDIR /opt
 COPY . .
 RUN cargo build --release
-WORKDIR /data
-ENTRYPOINT [ "/opt/target/release/orchestrator" ]
 #==========================================================
-# TODO: Maybe use `scratch` here to minimize the image size
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y \
+  libssl3 \
+  && rm -rf /var/lib/apt/lists/*
+COPY --from=build /opt/target/release/orchestrator /usr/local/bin/orchestrator
+ENTRYPOINT ["/usr/local/bin/orchestrator"]
+#==========================================================
