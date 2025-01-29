@@ -1,0 +1,38 @@
+services:
+  orchestrator:
+    build:
+      dockerfile: deployment/orchestrator.Dockerfile
+    container_name: orchestrator
+    environment:
+      ORCHESTRATOR_DATA_PATH: /opt/data
+      SERVICE_GENERIC_UPLOAD_URL: http://generic:8888/api/upload
+      SERVICE_GENERIC_DOWNLOAD_URL: http://generic:8888/api/get
+    ports:
+      - "3000:3000"
+    volumes:
+      - orchestrator-wd-data:/opt/data
+    networks:
+      - api
+      - public
+
+  generic:
+    build:
+      dockerfile: deployment/generic.Dockerfile
+    container_name: generic
+    command: /bin/jobd
+    environment:
+      PORT: 8888
+      DEBUG: true
+    ports:
+      - 8888:8888
+    networks:
+      - api
+
+networks:
+  public:
+    internal: false
+  api:
+    internal: true
+
+volumes:
+  orchestrator-wd-data:
