@@ -6,7 +6,22 @@ use axum::{
     http::StatusCode,
 };
 use sqlx::SqlitePool;
+use utoipa;
+use utoipa::ToSchema;
 
+#[utoipa::path(
+    get,
+    path = "/download/{id}",
+    params(
+        ("id" = i32, Path, description = "Job identifier")
+    ),
+    responses(
+        (status = 200, description = "File downloaded successfully", body = Vec<u8>),
+        (status = 202, description = "Job not ready"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "files"
+)]
 pub async fn download(
     State(pool): State<SqlitePool>,
     Path(id): Path<i32>,
@@ -24,6 +39,29 @@ pub async fn download(
     }
 }
 
+#[derive(ToSchema)]
+#[allow(dead_code)]
+struct MultipartUpload {
+    #[schema(format = "binary", value_type = String)]
+    file: Vec<u8>,
+    #[schema(example = "{\"user_id\": 2, \"service\": \"generic\"}")]
+    data: String,
+}
+#[utoipa::path(
+    post,
+    path = "/upload",
+    request_body(
+        content_type = "multipart/form-data",
+        content = MultipartUpload,
+        description = "Upload file and metadata"
+    ),
+    responses(
+        (status = 200, description = "File uploaded successfully", body = Job),
+        (status = 400, description = "Bad request"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "files"
+)]
 pub async fn upload(
     State(pool): State<SqlitePool>,
     mut multipart: Multipart,

@@ -7,14 +7,16 @@ use std::env;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(serde::Serialize, Debug)]
+#[derive(serde::Serialize, Debug, ToSchema)]
 pub struct Job {
     pub id: i32,
     pub user_id: i32,
     pub service: String,
     pub status: Status,
+    #[schema(value_type = String)]
     pub loc: PathBuf,
     pub dest_id: String,
 }

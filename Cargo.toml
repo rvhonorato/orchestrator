@@ -4,6 +4,8 @@ version = "0.1.0-alpha1"
 edition = "2021"
 
 [dependencies]
+utoipa = "5"
+utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
 anyhow = "1"
 tokio = { version = "1", features = ["full", "test-util"] }
 axum = { version = "0.8", features = ["multipart"] }

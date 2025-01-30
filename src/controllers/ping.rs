@@ -1,6 +1,8 @@
 use crate::models::ping_dto::Ping;
 use axum::extract::Json;
+use utoipa;
 
+#[utoipa::path(get, path = "/")]
 pub async fn ping() -> Json<Ping> {
     Json(Ping {
         message: "pong".to_string(),
