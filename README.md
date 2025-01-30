@@ -1,5 +1,10 @@
 # orchestrator
 
+![GitHub License](https://img.shields.io/github/license/rvhonorato/orchestrator)
+[![ci](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml)
+
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/7f2a8816886645d28cbaac0fead038f9)](https://app.codacy.com/gh/rvhonorato/orchestrator/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+
 🚧 work in progress 🚧
 
 ## Overview
