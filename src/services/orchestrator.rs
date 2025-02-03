@@ -61,9 +61,6 @@ pub async fn retrieve(job: &Job, config: &Config) -> Result<(), DownloadError> {
     if job.id == 0 {
         Err(DownloadError::NotFound)
     } else {
-        // let target = match dest {
-        //     Destinations::Jobd => Jobd,
-        // };
         // TODO: One service may have many destinations, figure that out here
         let dest = Destinations::Jobd;
         let target = match dest {
@@ -81,7 +78,7 @@ pub async fn retrieve(job: &Job, config: &Config) -> Result<(), DownloadError> {
 // pub async fn status() {}
 
 //==================================================================
-// Here !list all possible destinations
+// Here list all possible destinations
 pub enum Destinations {
     Jobd,
     // Slurml,
@@ -95,4 +92,37 @@ pub trait Endpoint {
     async fn upload(&self, j: &Job, url: &str) -> Result<String, UploadError>;
     // async fn status(&self, j: &Job) -> Result<reqwest::Response, reqwest::Error>;
     async fn download(&self, j: &Job, url: &str) -> Result<(), DownloadError>;
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::models::job_dao::Job;
+
+    #[tokio::test]
+    async fn test_send() {
+        let job = Job::new();
+        let config = Config::new().unwrap();
+
+        let result = send(&job, &config).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result, Err(UploadError::InvalidService)))
+
+        // FIXME: Mock the `upload` method
+    }
+
+    #[tokio::test]
+    async fn test_retrieve() {
+        let job = Job::new();
+        let config = Config::new().unwrap();
+
+        let result = retrieve(&job, &config).await;
+
+        assert!(result.is_err());
+        assert!(matches!(result, Err(DownloadError::NotFound)))
+
+        // FIXME: Mock the `download` method
+    }
 }
