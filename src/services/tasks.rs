@@ -77,3 +77,66 @@ pub async fn getter(pool: SqlitePool, config: Config) {
         futures::future::join_all(futures).await;
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::models::{job_dao::Job, job_dto::create_jobs_table};
+
+    #[tokio::test]
+    async fn test_sender() {
+        let pool = SqlitePool::connect(":memory:")
+            .await
+            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+        let config = Config::new().unwrap();
+
+        create_jobs_table(&pool).await.unwrap();
+
+        // add a job
+        let mut job = Job::new();
+        job.add_to_db(&pool).await.unwrap();
+        job.update_status(Status::Queued, &pool).await.unwrap();
+        let id = job.id;
+
+        sender(pool.clone(), config).await;
+
+        let mut _job = Job::new();
+        _job.retrieve_id(id, &pool).await.unwrap();
+
+        // Since nothing is configured, it will fail
+        //  the only thing we need to test here is if
+        //  the status is being updated
+        assert_eq!(_job.status, Status::Failed);
+
+        // TODO: Add mock the `send` function to test the match arm
+    }
+
+    #[tokio::test]
+    async fn test_getter() {
+        let pool = SqlitePool::connect(":memory:")
+            .await
+            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+        let config = Config::new().unwrap();
+
+        create_jobs_table(&pool).await.unwrap();
+
+        // add a job
+        let mut job = Job::new();
+        job.add_to_db(&pool).await.unwrap();
+        job.update_status(Status::Submitted, &pool).await.unwrap();
+        let id = job.id;
+
+        getter(pool.clone(), config).await;
+
+        let mut _job = Job::new();
+        _job.retrieve_id(id, &pool).await.unwrap();
+
+        // Since nothing is configured, it will fail
+        //  the only thing we need to test here is if
+        //  the status is not being updated
+        assert_eq!(_job.status, Status::Submitted);
+
+        // TODO: Add mock the `retrieve` function to test the match arm
+    }
+}
