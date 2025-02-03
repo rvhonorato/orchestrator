@@ -58,33 +58,29 @@ pub fn base64_to_file(base64_content: &str, output_path: PathBuf) -> io::Result<
     Ok(())
 }
 
-// fn to_base64(inp: &str) -> String {
-//     STANDARD.encode(inp)
-// }
-//
-// fn from_base64(inp: String) -> String {
-//     match STANDARD.decode(inp) {
-//         Ok(v) => String::from_utf8(v).expect("Could not decode"),
-//         Err(_) => "".to_string(),
-//     }
-// }
-//
-// pub fn is_zip(path: &str) -> bool {
-//     if let Ok(mut file) = std::fs::File::open(path) {
-//         let mut buffer = [0u8; 4];
-//         if file.read_exact(&mut buffer).is_ok() {
-//             return &buffer == b"PK\x03\x04";
-//         }
-//     }
-//     false
-// }
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use std::fs;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    use super::*;
+    #[tokio::test]
+    async fn test_stream_to_file() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let file_path = temp_file.path().to_path_buf();
+
+        let stream = tokio_stream::iter(vec![Ok::<bytes::Bytes, BoxError>(Bytes::from_static(
+            b"hello",
+        ))]);
+
+        let result = stream_to_file(file_path.clone(), stream).await;
+        assert!(result.is_ok());
+
+        let content = tokio::fs::read_to_string(file_path).await.unwrap();
+        assert_eq!(content, "hello")
+    }
 
     #[test]
     fn test_stream_file_to_base64() {
@@ -95,30 +91,52 @@ mod tests {
         assert_eq!(result, "aGVsbG8=")
     }
 
-    // #[test]
-    // fn test_to_base64() {
-    //     let result = to_base64("hello");
-    //     assert_eq!(result, "aGVsbG8=")
-    // }
+    #[test]
+    fn test_base64_to_file_success() {
+        // Create a temporary directory for the test
+        let temp_file = NamedTempFile::new().unwrap();
+        let file_path = temp_file.path().to_path_buf();
 
-    // #[test]
-    // fn test_from_base64() {
-    //     let result = from_base64("aGVsbG8=".to_string());
-    //     assert_eq!(result, "hello")
-    // }
+        let base64_content = "SGVsbG8gV29ybGQh"; // "Hello World!" in base64
 
-    // #[test]
-    // fn test_is_zip_false() {
-    //     let mut temp_file = NamedTempFile::new().unwrap();
-    //     let _ = temp_file.write_all(b"hello");
-    //     let temp_path = temp_file.path().to_str().unwrap();
-    //     let result = is_zip(temp_path);
-    //     assert!(!result)
-    // }
+        let result = base64_to_file(base64_content, file_path.clone());
 
-    // #[test]
-    // fn test_is_zip_true() {
-    //     let result = is_zip("tests/file.zip");
-    //     assert!(result)
-    // }
+        assert!(result.is_ok());
+
+        let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
+        assert_eq!(file_content, "Hello World!");
+    }
+
+    #[test]
+    fn test_base64_to_file_invalid_base64() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let file_path = temp_file.path().to_path_buf();
+
+        let base64_content = "InvalidBase64!!";
+
+        let result = base64_to_file(base64_content, file_path);
+
+        assert!(result.is_err());
+
+        if let Err(e) = result {
+            assert_eq!(e.kind(), io::ErrorKind::InvalidData);
+        }
+    }
+
+    #[test]
+    fn test_base64_to_file_directory_creation() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let file_path = temp_file.path().to_path_buf();
+
+        let base64_content = "SGVsbG8gV29ybGQh"; // "Hello World!" in base64
+
+        let result = base64_to_file(base64_content, file_path.clone());
+
+        assert!(result.is_ok());
+
+        assert!(file_path.parent().unwrap().exists());
+
+        let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
+        assert_eq!(file_content, "Hello World!");
+    }
 }
