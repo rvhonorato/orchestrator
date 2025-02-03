@@ -4,6 +4,7 @@ use crate::services::orchestrator;
 use sqlx::SqlitePool;
 use tracing::{debug, error};
 
+use super::jobd::Jobd;
 use super::orchestrator::DownloadError;
 
 pub async fn sender(pool: SqlitePool, config: Config) {
@@ -20,7 +21,7 @@ pub async fn sender(pool: SqlitePool, config: Config) {
                 tokio::spawn(async move {
                     j.update_status(Status::Processing, &pool_clone).await.ok();
 
-                    match orchestrator::send(&j, &config_clone).await {
+                    match orchestrator::send(&j, &config_clone, Jobd).await {
                         Ok(upload_id) => {
                             // info!("submitting: {:?}", j);
                             j.update_status(Status::Submitted, &pool_clone).await.ok();
@@ -57,7 +58,7 @@ pub async fn getter(pool: SqlitePool, config: Config) {
                 let pool_clone = pool.clone();
                 let config_clone = config.clone();
                 tokio::spawn(async move {
-                    let result = orchestrator::retrieve(&j, &config_clone).await;
+                    let result = orchestrator::retrieve(&j, &config_clone, Jobd).await;
                     match result {
                         Ok(_) => {
                             j.update_status(Status::Completed, &pool_clone).await.ok();

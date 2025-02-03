@@ -11,9 +11,9 @@ pub struct Config {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Service {
-    name: String,
-    upload_url: String,
-    download_url: String,
+    pub name: String,
+    pub upload_url: String,
+    pub download_url: String,
 }
 
 impl Config {
