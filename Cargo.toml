@@ -1,7 +1,20 @@
 [package]
 name = "orchestrator"
-version = "0.1.0-alpha1"
+version = "0.1.0"
 edition = "2021"
+description = "Asynchronous job orchestrator for managing and routing payloads between services and computing resources with quota tracking"
+authors = ["Rodrigo V. Honorato <rvhonorato@protonmail.com>"]
+license = "MIT"
+repository = "https://github.com/yourusername/orchestrator"
+keywords = [
+  "async",
+  "job-scheduler",
+  "scientific-computing",
+  "resource-management",
+  "queue",
+]
+categories = ["asynchronous", "science", "web-programming"]
+readme = "README.md"
 
 [dependencies]
 anyhow = "1.0"
