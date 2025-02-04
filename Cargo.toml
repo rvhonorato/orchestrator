@@ -4,33 +4,40 @@ version = "0.1.0-alpha1"
 edition = "2021"
 
 [dependencies]
-utoipa = "5"
-utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
-anyhow = "1"
-tokio = { version = "1", features = ["full", "test-util"] }
-tokio-stream = "0.1"
-bytes = "1"
+anyhow = "1.0"
 axum = { version = "0.8", features = ["multipart"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tower-http = { version = "0.6", features = ["trace"] }
-serde = { version = "1", features = ["derive"] }
+base64 = "0.22"
+bytes = "1.10"
+futures = "0.3"
+http = "1.2"
+hyper = { version = "1.5", features = ["full"] }
+mockall = "0.13"
+mockito = "1.6"
+reqwest = { version = "0.12.12", features = ["json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 serde_yaml = "0.9"
-uuid = { version = "1", features = ["v4", "serde"] }
-futures = "0"
-tokio-util = { version = "0.7", features = ["io"] }
-serde_json = "1"
-base64 = "0.22.1"
-tempfile = "3.15.0"
 sqlx = { version = "0.8", features = [
   "runtime-tokio-rustls",
   "any",
   "sqlite",
   "macros",
 ] }
-reqwest = { version = "0.12.12", features = ["json"] }
-thiserror = "2"
-mockall = "0.13"
-tower = { version = "0.5", features = ["util"] }
-hyper = { version = "1.5", features = ["full"] }
+tempfile = "3.15"
+thiserror = "2.0"
+tokio = { version = "1.43", features = [
+  "full",
+  "test-util",
+  "macros",
+  "rt-multi-thread",
+] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["io"] }
 tokio_schedule = "0.3"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+utoipa = "5.3"
+utoipa-swagger-ui = { version = "9.0", features = ["axum"] }
+uuid = { version = "1.12", features = ["v4", "serde"] }
