@@ -1,11 +1,11 @@
 use crate::models::job_dao::Job;
 use crate::models::status_dto::Status;
 use crate::models::uploadpayload_dto::UploadPayload;
+use crate::routes::router::AppState;
 use axum::{
     extract::{Json, Multipart, Path, State},
     http::StatusCode,
 };
-use sqlx::SqlitePool;
 use utoipa;
 use utoipa::ToSchema;
 
@@ -23,12 +23,12 @@ use utoipa::ToSchema;
     tag = "files"
 )]
 pub async fn download(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Vec<u8>, StatusCode> {
     let mut job = Job::new();
 
-    job.retrieve_id(id, &pool)
+    job.retrieve_id(id, &state.pool)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -58,12 +58,13 @@ struct MultipartUpload {
     responses(
         (status = 200, description = "File uploaded successfully", body = Job),
         (status = 400, description = "Bad request"),
-        (status = 500, description = "Internal server error")
+        (status = 500, description = "Internal server error"),
+        (status = 503, description = "Service unavailable")
     ),
     tag = "files"
 )]
 pub async fn upload(
-    State(pool): State<SqlitePool>,
+    State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<Json<Job>, (StatusCode, String)> {
     let mut user_data = None;
@@ -103,16 +104,23 @@ pub async fn upload(
             }
         }
     }
+
     let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
+    if !state.config.services.contains_key(&user_data.service) {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "invalid service".to_string(),
+        ));
+    };
     job.set_user_id(user_data.user_id);
     job.set_service(user_data.service);
 
     // Add it to the database and handle potential errors
-    job.add_to_db(&pool)
+    job.add_to_db(&state.pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let _ = job.update_status(Status::Queued, &pool).await;
+    let _ = job.update_status(Status::Queued, &state.pool).await;
 
     Ok(Json(job))
 }
