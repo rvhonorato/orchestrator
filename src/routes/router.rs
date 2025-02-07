@@ -1,3 +1,4 @@
+use crate::config::loader::Config;
 use crate::controllers::orchestrator::__path_download;
 use crate::controllers::orchestrator::__path_upload;
 use crate::controllers::orchestrator::{download, upload};
@@ -16,8 +17,9 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 #[derive(Clone)]
-struct AppState {
-    db: SqlitePool,
+pub struct AppState {
+    pub pool: SqlitePool,
+    pub config: Config,
 }
 
 #[derive(OpenApi)]
@@ -35,14 +37,14 @@ struct AppState {
 )]
 struct ApiDoc;
 
-pub fn create_routes(pool: SqlitePool) -> Router {
-    let state = AppState { db: pool };
+pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
+    let state = AppState { pool, config };
     Router::new()
         .route("/", get(ping))
         .route("/upload", post(upload))
         .route("/download/{id}", get(download))
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .with_state(state.db)
+        .with_state(state)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

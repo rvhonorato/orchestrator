@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Create app
-    let app = create_routes(pool.clone());
+    let app = create_routes(pool.clone(), config.clone());
 
     // Initialize socket
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
