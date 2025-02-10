@@ -9,8 +9,7 @@ services:
       # Location inside the container where the db will be saved
       DB_PATH: /opt/data/db.sqlite
       # Max age of folders (in seconds)
-      # MAX_AGE: 172800
-      MAX_AGE: 2
+      MAX_AGE: 172800
       # Services #==================================================#
       SERVICE_GENERIC_UPLOAD_URL: http://generic:8888/api/upload
       SERVICE_GENERIC_DOWNLOAD_URL: http://generic:8888/api/get
