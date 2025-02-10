@@ -73,20 +73,43 @@ impl Job {
     }
 
     pub async fn retrieve_id(&mut self, id: i32, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-        let result = sqlx::query("SELECT * FROM jobs WHERE id = ?")
+        let row = sqlx::query("SELECT * FROM jobs WHERE id = ?")
             .bind(id)
             .fetch_optional(pool)
-            .await?;
-        if let Some(row) = result {
-            let status: String = row.get("status");
-            let loc: String = row.get("loc");
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
 
-            self.id = row.get("id");
-            self.user_id = row.get("user_id");
-            self.status = Status::from_string(&status);
-            self.loc = PathBuf::from(loc);
-            self.dest_id = row.get("dest_id");
-        };
+        let status: String = row.get("status");
+        let loc: String = row.get("loc");
+
+        self.id = row.get("id");
+        self.user_id = row.get("user_id");
+        self.status = Status::from_string(&status);
+        self.loc = PathBuf::from(loc);
+        self.dest_id = row.get("dest_id");
+
+        Ok(())
+    }
+
+    pub async fn retrieve_by_loc(
+        &mut self,
+        loc: String,
+        pool: &SqlitePool,
+    ) -> Result<(), sqlx::Error> {
+        let row = sqlx::query("SELECT * FROM jobs WHERE loc = ?")
+            .bind(loc)
+            .fetch_optional(pool)
+            .await?
+            .ok_or(sqlx::Error::RowNotFound)?;
+
+        let status: String = row.get("status");
+        let loc: String = row.get("loc");
+
+        self.id = row.get("id");
+        self.user_id = row.get("user_id");
+        self.status = Status::from_string(&status);
+        self.loc = PathBuf::from(loc);
+        self.dest_id = row.get("dest_id");
 
         Ok(())
     }

@@ -23,10 +23,6 @@ pub struct Job {
 impl Job {
     pub fn new(data_path: &str) -> Job {
         let loc = std::path::Path::new(&data_path).join(Uuid::new_v4().to_string());
-        match fs::create_dir(&loc) {
-            Ok(_) => (),
-            Err(e) => println!("could not create directory {}", e),
-        }
         Job {
             id: 0,
             user_id: 0,
@@ -46,10 +42,10 @@ impl Job {
         S: Stream<Item = Result<Bytes, E>>,
         E: Into<BoxError>,
     {
-        // match fs::create_dir(&self.loc) {
-        //     Ok(_) => (),
-        //     Err(e) => println!("could not create directory {}", e),
-        // }
+        match fs::create_dir(&self.loc) {
+            Ok(_) => (),
+            Err(e) => println!("could not create directory {}", e),
+        }
         let full_path = std::path::Path::join(&self.loc, filename);
         stream_to_file(full_path, stream).await?;
         Ok(())
@@ -62,8 +58,8 @@ impl Job {
         buffer
     }
 
-    pub fn remove_from_disk(&self) {
-        fs::remove_dir_all(&self.loc).unwrap()
+    pub fn remove_from_disk(&self) -> Result<(), std::io::Error> {
+        fs::remove_dir_all(&self.loc)
     }
 
     pub fn set_service(&mut self, service: String) {
@@ -88,10 +84,11 @@ mod test {
         let job = Job::new(tempdir.path().to_str().unwrap());
 
         // First verify the directory exists
+        fs::create_dir_all(&job.loc).unwrap();
         assert!(Path::new(&job.loc).exists());
 
         // Remove the directory
-        job.remove_from_disk();
+        let _ = job.remove_from_disk();
 
         // Verify the directory no longer exists
         assert!(!Path::new(&job.loc).exists());
