@@ -43,7 +43,7 @@ pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
         .route("/", get(ping))
         .route("/upload", post(upload))
         .route("/download/{id}", get(download))
-        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()
