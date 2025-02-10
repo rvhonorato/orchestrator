@@ -145,8 +145,9 @@ mod test {
 
     use super::*;
     use crate::models::{job_dao::Job, job_dto::create_jobs_table};
-
+    use std::{path::Path, time::Duration};
     use tempfile::TempDir;
+    use tokio::time::sleep;
 
     #[tokio::test]
     async fn test_sender() {
@@ -206,5 +207,40 @@ mod test {
         assert_eq!(_job.status, Status::Submitted);
 
         // TODO: Add mock the `retrieve` function to test the match arm
+    }
+
+    #[tokio::test]
+    async fn test_cleaner() {
+        let pool = SqlitePool::connect(":memory:")
+            .await
+            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+        let mut config = Config::new().unwrap();
+
+        create_jobs_table(&pool).await.unwrap();
+
+        // add a job
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
+        fs::create_dir_all(&job.loc).unwrap();
+
+        job.add_to_db(&pool).await.unwrap();
+
+        config.max_age = Duration::from_nanos(1);
+        config.data_path = tempdir.path().to_str().unwrap().to_string();
+
+        // Sleep to allow the file to age
+        // NOTE: This is simpler than editing the mtime
+        sleep(Duration::from_nanos(1)).await;
+
+        assert!(Path::new(&job.loc).exists());
+
+        cleaner(pool.clone(), config).await;
+
+        assert!(!Path::new(&job.loc).exists());
+
+        let mut _job = Job::new("");
+        let _ = _job.retrieve_id(job.id, &pool).await;
+
+        assert_eq!(_job.status, Status::Cleaned);
     }
 }

@@ -75,8 +75,42 @@ impl Job {
 mod test {
 
     use super::*;
+    use bytes::Bytes;
+    use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
+
+    #[tokio::test]
+    async fn test_save_to_disk() {
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
+
+        let stream = tokio_stream::iter(vec![Ok::<bytes::Bytes, BoxError>(Bytes::from_static(
+            b"hello",
+        ))]);
+        let filename = String::from("test.txt");
+
+        let result = job.save_to_disk(stream, &filename).await;
+        assert!(result.is_ok());
+
+        let content = tokio::fs::read_to_string(job.loc.join(&filename))
+            .await
+            .unwrap();
+        assert_eq!(content, "hello");
+    }
+
+    #[tokio::test]
+    async fn test_download() {
+        let tempdir = TempDir::new().unwrap();
+        let job = Job::new(tempdir.path().to_str().unwrap());
+
+        let _ = fs::create_dir_all(&job.loc);
+        let test_data = b"test content".to_vec();
+        fs::write(job.loc.join("output.zip"), &test_data).unwrap();
+
+        let result = job.download();
+        assert_eq!(result, test_data);
+    }
 
     #[test]
     fn test_remove_from_disk() {
@@ -92,5 +126,19 @@ mod test {
 
         // Verify the directory no longer exists
         assert!(!Path::new(&job.loc).exists());
+    }
+
+    #[test]
+    fn test_set_service() {
+        let mut job = Job::new("");
+        job.set_service("test".to_string());
+        assert_eq!(job.service, "test".to_string())
+    }
+
+    #[test]
+    fn test_set_user_id() {
+        let mut job = Job::new("");
+        job.set_user_id(99);
+        assert_eq!(job.user_id, 99)
     }
 }
