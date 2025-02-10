@@ -2,15 +2,16 @@ use std::fs;
 use std::time::SystemTime;
 
 use crate::config::loader::Config;
+use crate::models::job_dao::Job;
 use crate::models::{queue_dao::Queue, status_dto::Status};
 use crate::services::orchestrator;
 use sqlx::SqlitePool;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 use super::jobd::Jobd;
 use super::orchestrator::DownloadError;
 
-pub async fn cleaner(config: Config) {
+pub async fn cleaner(pool: SqlitePool, config: Config) {
     // List all directories inside the config.data_path
     let elements = match fs::read_dir(&config.data_path) {
         Ok(e) => e,
@@ -20,7 +21,7 @@ pub async fn cleaner(config: Config) {
         }
     };
 
-    elements.into_iter().for_each(|entry| {
+    let futures = elements.into_iter().map(|entry| async {
         let entry = match entry {
             Ok(d) => d,
             Err(_) => {
@@ -43,20 +44,28 @@ pub async fn cleaner(config: Config) {
             let current_time = SystemTime::now();
             if let Ok(age) = current_time.duration_since(mod_time) {
                 if age >= config.max_age {
-                    info!(
+                    debug!(
                         "{:?} - {:?} - {:?}",
                         path.display(),
                         age.as_secs(),
                         config.max_age
                     );
-                    match fs::remove_dir_all(&path) {
-                        Ok(_) => info!("path {:?} removed", path),
-                        Err(_) => error!("could not remove {:?}", path),
+                    let mut job = Job::new("");
+                    match job.retrieve_by_loc(path.display().to_string(), &pool).await {
+                        Ok(_) => {
+                            let _ = job.update_status(Status::Cleaned, &pool).await;
+                            if let Err(e) = job.remove_from_disk() {
+                                error!("error: {:?} - could not remove {:?}", e, path)
+                            }
+                        }
+                        Err(e) => error!("{:?} - not found: {:?}", e, path),
                     }
                 }
             }
-        }
+        };
     });
+
+    futures::future::join_all(futures).await;
 }
 
 pub async fn sender(pool: SqlitePool, config: Config) {
