@@ -1,11 +1,63 @@
+use std::fs;
+use std::time::SystemTime;
+
 use crate::config::loader::Config;
 use crate::models::{queue_dao::Queue, status_dto::Status};
 use crate::services::orchestrator;
 use sqlx::SqlitePool;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 use super::jobd::Jobd;
 use super::orchestrator::DownloadError;
+
+pub async fn cleaner(config: Config) {
+    // List all directories inside the config.data_path
+    let elements = match fs::read_dir(&config.data_path) {
+        Ok(e) => e,
+        Err(_) => {
+            error!("could not read directory: {}", config.data_path);
+            return;
+        }
+    };
+
+    elements.into_iter().for_each(|entry| {
+        let entry = match entry {
+            Ok(d) => d,
+            Err(_) => {
+                error!("could not read subdir");
+                return;
+            }
+        };
+        let path = entry.path();
+        if !path.is_dir() {
+            return;
+        }
+        let metadata = match fs::metadata(&path) {
+            Ok(m) => m,
+            Err(_) => {
+                error!("could not read metadata");
+                return;
+            }
+        };
+        if let Ok(mod_time) = metadata.modified() {
+            let current_time = SystemTime::now();
+            if let Ok(age) = current_time.duration_since(mod_time) {
+                if age >= config.max_age {
+                    info!(
+                        "{:?} - {:?} - {:?}",
+                        path.display(),
+                        age.as_secs(),
+                        config.max_age
+                    );
+                    match fs::remove_dir_all(&path) {
+                        Ok(_) => info!("path {:?} removed", path),
+                        Err(_) => error!("could not remove {:?}", path),
+                    }
+                }
+            }
+        }
+    });
+}
 
 pub async fn sender(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new();
@@ -85,6 +137,8 @@ mod test {
     use super::*;
     use crate::models::{job_dao::Job, job_dto::create_jobs_table};
 
+    use tempfile::TempDir;
+
     #[tokio::test]
     async fn test_sender() {
         let pool = SqlitePool::connect(":memory:")
@@ -95,14 +149,16 @@ mod test {
         create_jobs_table(&pool).await.unwrap();
 
         // add a job
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.add_to_db(&pool).await.unwrap();
         job.update_status(Status::Queued, &pool).await.unwrap();
         let id = job.id;
 
         sender(pool.clone(), config).await;
 
-        let mut _job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut _job = Job::new(tempdir.path().to_str().unwrap());
         _job.retrieve_id(id, &pool).await.unwrap();
 
         // Since nothing is configured, it will fail
@@ -123,14 +179,16 @@ mod test {
         create_jobs_table(&pool).await.unwrap();
 
         // add a job
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.add_to_db(&pool).await.unwrap();
         job.update_status(Status::Submitted, &pool).await.unwrap();
         let id = job.id;
 
         getter(pool.clone(), config).await;
 
-        let mut _job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut _job = Job::new(tempdir.path().to_str().unwrap());
         _job.retrieve_id(id, &pool).await.unwrap();
 
         // Since nothing is configured, it will fail

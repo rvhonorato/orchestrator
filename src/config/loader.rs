@@ -1,12 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::env;
 use std::error::Error;
-use tracing::info;
+use std::time::Duration;
+use std::{env, time};
+use tracing::{info, warn};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     pub services: HashMap<String, Service>,
+    pub db_path: String,
+    pub data_path: String,
+    pub max_age: Duration,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -48,7 +52,44 @@ impl Config {
             }
         }
 
-        let config = Config { services };
+        let wd = env::current_dir().unwrap().display().to_string();
+
+        let db_path = match env::var("DB_PATH") {
+            Ok(p) => p,
+            Err(_) => {
+                let db_path = format!("{}/db.sqlite", wd.clone());
+                warn!("DB_PATH not defined, using {:?}", db_path);
+                db_path
+            }
+        };
+
+        let data_path = match env::var("DATA_PATH") {
+            Ok(p) => p,
+            Err(_) => {
+                let data_path = format!("{}/data", wd);
+                warn!("DATA_PATH not defined, using {:?}", data_path);
+                data_path
+            }
+        };
+
+        let max_age = match env::var("MAX_AGE") {
+            Ok(v) => {
+                let time: u64 = v.parse().unwrap();
+                time::Duration::from_secs(time)
+            }
+            Err(_) => {
+                let duration = time::Duration::from_secs(864000);
+                warn!("MAX_AGE not defined, using {:?}", duration);
+                duration
+            }
+        };
+
+        let config = Config {
+            services,
+            db_path,
+            data_path,
+            max_age,
+        };
         info!("{:?}", config);
         Ok(config)
     }

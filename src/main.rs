@@ -9,7 +9,7 @@ use crate::datasource::db::init_db;
 use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
 use config::loader::Config;
-use services::tasks::{getter, sender};
+use services::tasks::{cleaner, getter, sender};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_schedule::{every, Job};
@@ -27,10 +27,10 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::new().unwrap();
 
     // Initialize the database
-    let pool = init_db().await;
+    let pool = init_db(&config.db_path).await;
 
     // Initialize the filesystem
-    let _ = init_fs().await;
+    let _ = init_fs(&config.data_path).await;
 
     // Create a scheduled job
     let sender_task = every(500).millisecond().perform(|| {
@@ -45,6 +45,11 @@ async fn main() -> anyhow::Result<()> {
         async move { getter(pool_clone, config_clone).await }
     });
 
+    let cleaner_task = every(1).second().perform(|| {
+        let config_clone = config.clone();
+        async move { cleaner(config_clone).await }
+    });
+
     // Create app
     let app = create_routes(pool.clone(), config.clone());
 
@@ -57,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::select! {
         _ = sender_task => {},
         _ = getter_task => {},
+        _ = cleaner_task => {},
         _ = axum::serve(listener, app.into_make_service()) => {},
     }
 

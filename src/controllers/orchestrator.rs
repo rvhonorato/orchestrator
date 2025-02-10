@@ -26,7 +26,7 @@ pub async fn download(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Vec<u8>, StatusCode> {
-    let mut job = Job::new();
+    let mut job = Job::new(&state.config.data_path);
 
     job.retrieve_id(id, &state.pool)
         .await
@@ -69,7 +69,7 @@ pub async fn upload(
 ) -> Result<Json<Job>, (StatusCode, String)> {
     let mut user_data = None;
     // Create an empty job
-    let mut job = Job::new();
+    let mut job = Job::new(&state.config.data_path);
 
     while let Ok(Some(field)) = multipart.next_field().await {
         if let Some(field_name) = field.name() {
@@ -107,6 +107,7 @@ pub async fn upload(
 
     let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
     if !state.config.services.contains_key(&user_data.service) {
+        job.remove_from_disk();
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             "invalid service".to_string(),

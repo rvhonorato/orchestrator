@@ -154,8 +154,8 @@ mod test {
     async fn test_prepare_upload_data() {
         // Test ok
         {
-            let mut job = Job::new();
             let tempdir = TempDir::new().unwrap();
+            let mut job = Job::new(tempdir.path().to_str().unwrap());
             let file_path = tempdir.path().join("payload.zip");
             let mut tempfile = File::create(file_path).unwrap();
             writeln!(tempfile, "test").unwrap();
@@ -168,7 +168,8 @@ mod test {
         }
         // Test err
         {
-            let mut job = Job::new();
+            let tempdir = TempDir::new().unwrap();
+            let mut job = Job::new(tempdir.path().to_str().unwrap());
 
             job.loc = PathBuf::new();
 
@@ -445,8 +446,8 @@ mod test {
         let mut server = mockito::Server::new_async().await;
 
         // Create test job
-        let mut job = Job::new();
         let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         let file_path = tempdir.path().join("payload.zip");
         let mut tempfile = File::create(file_path).unwrap();
         writeln!(tempfile, "test").unwrap();
@@ -482,7 +483,7 @@ mod test {
         let temp_dir = tempfile::TempDir::new().unwrap();
 
         // Create test job
-        let mut job = Job::new();
+        let mut job = Job::new(temp_dir.path().to_str().unwrap());
         job.loc = temp_dir.into_path();
 
         let dest_id = "test-123".to_string();

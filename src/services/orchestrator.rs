@@ -84,6 +84,8 @@ mod test {
     use crate::config::loader::Service;
     use crate::models::job_dao::Job;
     use std::collections::HashMap;
+    use std::time::Duration;
+    use tempfile::TempDir;
     use uuid::Uuid;
 
     // Mock `upload` and `download`,
@@ -113,7 +115,8 @@ mod test {
     #[tokio::test]
     async fn test_send_ok() {
         let service_name = Uuid::new_v4().to_string();
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.service = service_name.clone();
 
         let mut services = HashMap::new();
@@ -125,7 +128,12 @@ mod test {
                 download_url: "".to_string(),
             },
         );
-        let config = Config { services };
+        let config = Config {
+            services,
+            data_path: "".to_string(),
+            db_path: "".to_string(),
+            max_age: Duration::from_secs(1),
+        };
         let target = OkMockDestination;
 
         let result = send(&job, &config, target).await;
@@ -139,7 +147,8 @@ mod test {
     #[tokio::test]
     async fn test_send_err() {
         let service_name = Uuid::new_v4().to_string();
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.service = service_name.clone();
 
         let mut services = HashMap::new();
@@ -151,7 +160,12 @@ mod test {
                 download_url: "".to_string(),
             },
         );
-        let config = Config { services };
+        let config = Config {
+            services,
+            data_path: "".to_string(),
+            db_path: "".to_string(),
+            max_age: Duration::from_secs(1),
+        };
 
         let target = ErrMockDestination;
         let result = send(&job, &config, target).await;
@@ -161,7 +175,8 @@ mod test {
     #[tokio::test]
     async fn test_retrieve_ok() {
         let service_name = Uuid::new_v4().to_string();
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.service = service_name.clone();
         job.id = 42;
 
@@ -174,7 +189,12 @@ mod test {
                 download_url: "".to_string(),
             },
         );
-        let config = Config { services };
+        let config = Config {
+            services,
+            data_path: "".to_string(),
+            db_path: "".to_string(),
+            max_age: Duration::from_secs(1),
+        };
         let target = OkMockDestination;
 
         let result = retrieve(&job, &config, target).await;
@@ -184,7 +204,8 @@ mod test {
     #[tokio::test]
     async fn test_retrieve_err() {
         let service_name = Uuid::new_v4().to_string();
-        let mut job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let mut job = Job::new(tempdir.path().to_str().unwrap());
         job.service = service_name.clone();
         job.id = 42;
 
@@ -197,7 +218,12 @@ mod test {
                 download_url: "".to_string(),
             },
         );
-        let config = Config { services };
+        let config = Config {
+            services,
+            data_path: "".to_string(),
+            db_path: "".to_string(),
+            max_age: Duration::from_secs(1),
+        };
         let target = ErrMockDestination;
 
         let result = retrieve(&job, &config, target).await;
@@ -206,7 +232,8 @@ mod test {
 
     #[tokio::test]
     async fn test_retrieve_err_empty_job() {
-        let job = Job::new();
+        let tempdir = TempDir::new().unwrap();
+        let job = Job::new(tempdir.path().to_str().unwrap());
 
         let mut services = HashMap::new();
         services.insert(
@@ -217,7 +244,12 @@ mod test {
                 download_url: "".to_string(),
             },
         );
-        let config = Config { services };
+        let config = Config {
+            services,
+            data_path: "".to_string(),
+            db_path: "".to_string(),
+            max_age: Duration::from_secs(1),
+        };
         let target = ErrMockDestination;
 
         let result = retrieve(&job, &config, target).await;
