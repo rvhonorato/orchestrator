@@ -18,6 +18,8 @@ use utoipa::ToSchema;
     responses(
         (status = 200, description = "File downloaded successfully", body = Vec<u8>),
         (status = 202, description = "Job not ready"),
+        (status = 204, description = "Job failed or cleaned"),
+        (status = 404, description = "Job not found"),
         (status = 500, description = "Internal server error")
     ),
     tag = "files"
@@ -26,14 +28,19 @@ pub async fn download(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<Vec<u8>, StatusCode> {
-    let mut job = Job::new();
+    let mut job = Job::new(&state.config.data_path);
 
     job.retrieve_id(id, &state.pool)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
 
     match job.status {
         Status::Completed => Ok(job.download()),
+        Status::Failed => Err(StatusCode::NO_CONTENT),
+        Status::Cleaned => Err(StatusCode::NO_CONTENT),
         // TODO: Handle other status here
         _ => Err(StatusCode::ACCEPTED),
     }
@@ -69,7 +76,7 @@ pub async fn upload(
 ) -> Result<Json<Job>, (StatusCode, String)> {
     let mut user_data = None;
     // Create an empty job
-    let mut job = Job::new();
+    let mut job = Job::new(&state.config.data_path);
 
     while let Ok(Some(field)) = multipart.next_field().await {
         if let Some(field_name) = field.name() {
@@ -107,6 +114,7 @@ pub async fn upload(
 
     let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
     if !state.config.services.contains_key(&user_data.service) {
+        let _ = job.remove_from_disk();
         return Err((
             StatusCode::SERVICE_UNAVAILABLE,
             "invalid service".to_string(),
