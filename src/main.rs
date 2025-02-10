@@ -45,9 +45,10 @@ async fn main() -> anyhow::Result<()> {
         async move { getter(pool_clone, config_clone).await }
     });
 
-    let cleaner_task = every(1).second().perform(|| {
+    let cleaner_task = every(60).second().perform(|| {
+        let pool_clone = pool.clone();
         let config_clone = config.clone();
-        async move { cleaner(config_clone).await }
+        async move { cleaner(pool_clone, config_clone).await }
     });
 
     // Create app
