@@ -2,16 +2,23 @@ services:
   orchestrator:
     build:
       dockerfile: deployment/orchestrator.Dockerfile
-    # image: ghcr.io/rvhonorato/orchestrator:v0.1.0-alpha1
     container_name: orchestrator
     environment:
-      ORCHESTRATOR_DATA_PATH: /opt/data
+      # Location inside the container where the data will be saved
+      DATA_PATH: /opt/data
+      # Location inside the container where the db will be saved
+      DB_PATH: /opt/data/db.sqlite
+      # Max age of folders (in seconds)
+      # MAX_AGE: 172800
+      MAX_AGE: 2
+      # Services #==================================================#
       SERVICE_GENERIC_UPLOAD_URL: http://generic:8888/api/upload
       SERVICE_GENERIC_DOWNLOAD_URL: http://generic:8888/api/get
+      #=============================================================#
     ports:
       - "3000:3000"
     volumes:
-      - orchestrator-wd-data:/opt/data
+      - orchestrator-data:/opt/data
     networks:
       - api
       - public
@@ -36,4 +43,4 @@ networks:
     internal: true
 
 volumes:
-  orchestrator-wd-data:
+  orchestrator-data:
