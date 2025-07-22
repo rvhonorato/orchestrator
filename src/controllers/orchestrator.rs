@@ -6,6 +6,7 @@ use axum::{
     extract::{Json, Multipart, Path, State},
     http::StatusCode,
 };
+use std::collections::HashMap;
 use utoipa;
 use utoipa::ToSchema;
 
@@ -75,51 +76,40 @@ pub async fn upload(
     mut multipart: Multipart,
 ) -> Result<Json<Job>, (StatusCode, String)> {
     let mut user_data = None;
-    // Create an empty job
+
+    let mut text_fields: HashMap<String, String> = HashMap::new();
+    let mut file_fields: HashMap<String, String> = HashMap::new(); // field_name -> filename
     let mut job = Job::new(&state.config.data_path);
 
+    // Collect all fields
     while let Ok(Some(field)) = multipart.next_field().await {
         if let Some(field_name) = field.name() {
-            match field_name {
-                "file" => {
-                    // Save the file to disk
-                    // let filename = field.file_name().unwrap().to_string();
+            let field_name = field_name.to_string();
 
-                    let filename = "payload.zip".to_string();
+            if field.file_name().is_some() {
+                // Handle file
+                let original_filename = field.file_name().unwrap().to_string();
+                let safe_filename = format!("{}_{}", field_name, original_filename);
 
-                    job.save_to_disk(field, &filename).await?;
-
-                    // // TODO: Make sure the file is a zip file
-                    // if !is_zip(&filename) {
-                    //     todo!()
-                    // }
-                }
-                "data" => {
-                    // Extract relevant fields from the data
-                    let data = field
-                        .text()
-                        .await
-                        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-
-                    // Map the json to the `UploadPayload` struct
-                    user_data = Some(
-                        serde_json::from_str::<UploadPayload>(&data)
-                            .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?,
-                    );
-                }
-                _ => {}
+                job.save_to_disk(field, &safe_filename).await?;
+                file_fields.insert(field_name, safe_filename);
+            } else {
+                // Handle text
+                let text_data = field
+                    .text()
+                    .await
+                    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+                text_fields.insert(field_name, text_data);
             }
         }
     }
 
-    let user_data = user_data.ok_or((StatusCode::BAD_REQUEST, "Missing JSON data".to_string()))?;
-    if !state.config.services.contains_key(&user_data.service) {
-        let _ = job.remove_from_disk();
-        return Err((
-            StatusCode::SERVICE_UNAVAILABLE,
-            "invalid service".to_string(),
-        ));
-    };
+    // TODO: Process
+    todo!()
+
+    // TODO: Store metadata?
+    //
+
     job.set_user_id(user_data.user_id);
     job.set_service(user_data.service);
 
