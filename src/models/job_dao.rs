@@ -47,9 +47,7 @@ impl Job {
             Err(e) => println!("could not create directory {}", e),
         }
         let full_path = std::path::Path::join(&self.loc, filename);
-        println!("full_path: {:?}", full_path);
         stream_to_file(full_path, stream).await?;
-        println!("File saved to disk at {:?}", self.loc);
         Ok(())
     }
 

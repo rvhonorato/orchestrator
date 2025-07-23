@@ -121,8 +121,6 @@ pub async fn upload(
 
     let _ = job.update_status(Status::Queued, &state.pool).await;
 
-    println!("Job created: {:?}", job);
-
     Ok(Json(job))
 }
 
@@ -245,7 +243,6 @@ mod tests {
         // Check if the file was saved correctly
         let expected_loc = json["loc"].as_str().unwrap();
         let expected_file = PathBuf::from(expected_loc).join("test.txt");
-        println!("Expected file path: {:?}", expected_file);
         assert!(expected_file.exists());
     }
 
