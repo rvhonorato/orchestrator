@@ -4,4 +4,3 @@ pub mod ping_dto;
 pub mod queue_dao;
 pub mod queue_dto;
 pub mod status_dto;
-pub mod uploadpayload_dto;

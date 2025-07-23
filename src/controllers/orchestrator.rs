@@ -1,6 +1,5 @@
 use crate::models::job_dao::Job;
 use crate::models::status_dto::Status;
-use crate::models::uploadpayload_dto::UploadPayload;
 use crate::routes::router::AppState;
 use axum::{
     extract::{Json, Multipart, Path, State},
@@ -78,7 +77,6 @@ pub async fn upload(
     // let mut user_data = None;
 
     let mut text_fields: HashMap<String, String> = HashMap::new();
-    let mut file_fields: HashMap<String, String> = HashMap::new(); // field_name -> filename
     let mut job = Job::new(&state.config.data_path);
 
     // Collect all fields
@@ -88,11 +86,9 @@ pub async fn upload(
 
             if field.file_name().is_some() {
                 // Handle file
-                let original_filename = field.file_name().unwrap().to_string();
-                let safe_filename = format!("{}_{}", field_name, original_filename);
-
-                job.save_to_disk(field, &safe_filename).await?;
-                file_fields.insert(field_name, safe_filename);
+                // NOTE: This is expecting filenames to be safe!!
+                let filename = field.file_name().unwrap().to_string();
+                job.save_to_disk(field, &filename).await?;
             } else {
                 // Handle text
                 let text_data = field
@@ -104,8 +100,19 @@ pub async fn upload(
         }
     }
 
-    // job.set_user_id(user_data.user_id);
-    // job.set_service(user_data.service);
+    let user_id = match text_fields.get("user_id") {
+        Some(id) => id
+            .parse::<i32>()
+            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid user_id".to_string()))?,
+        None => return Err((StatusCode::BAD_REQUEST, "Missing user_id".to_string())),
+    };
+    let service_id = match text_fields.get("service") {
+        Some(id) => id.clone(),
+        None => return Err((StatusCode::BAD_REQUEST, "Missing service_id".to_string())),
+    };
+
+    job.set_user_id(user_id);
+    job.set_service(service_id);
 
     // Add it to the database and handle potential errors
     job.add_to_db(&state.pool)
@@ -113,6 +120,8 @@ pub async fn upload(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let _ = job.update_status(Status::Queued, &state.pool).await;
+
+    println!("Job created: {:?}", job);
 
     Ok(Json(job))
 }
@@ -122,11 +131,17 @@ mod tests {
     use super::*;
     use crate::config::loader::Config;
     use crate::routes::router::AppState;
-    use std::io::Write;
-
+    use axum::body::to_bytes;
+    use axum::body::Body;
+    use axum::{routing::post, Router};
+    use http::{header, Request, StatusCode};
     use sqlx::SqlitePool;
     use std::fs;
+    use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::tempdir;
+    use tower::ServiceExt; // for `oneshot`
+    use uuid::Uuid;
 
     // Helper function to initialize the database schema
     pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
@@ -146,6 +161,92 @@ mod tests {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    // Helper functions to create multipart form data
+    fn form_field(boundary: &str, name: &str, value: &str) -> Vec<u8> {
+        format!(
+            "--{boundary}\r\n\
+                Content-Disposition: form-data; name=\"{name}\"\r\n\r\n\
+                {value}\r\n"
+        )
+        .into_bytes()
+    }
+
+    fn form_file(
+        boundary: &str,
+        name: &str,
+        filename: &str,
+        content_type: &str,
+        content: &[u8],
+    ) -> Vec<u8> {
+        let mut part = format!(
+            "--{boundary}\r\n\
+                Content-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n\
+                Content-Type: {content_type}\r\n\r\n"
+        )
+        .into_bytes();
+        part.extend_from_slice(content);
+        part.extend_from_slice(b"\r\n");
+        part
+    }
+
+    #[tokio::test]
+    async fn test_upload() {
+        // Setup the route
+        let data_dir = tempdir().unwrap();
+        let mut config = Config::new().unwrap();
+        config.data_path = data_dir.path().to_str().unwrap().to_string();
+
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let state = AppState { pool, config };
+
+        let app = Router::new()
+            .route("/upload", post(upload))
+            .with_state(state);
+
+        // Create a multipart/form-data request
+        let boundary = format!("----Boundary{}", Uuid::new_v4());
+        let mut body = Vec::new();
+        body.extend(form_field(&boundary, "service", "my-test-service"));
+        body.extend(form_field(&boundary, "user_id", "42"));
+        body.extend(form_file(
+            &boundary,
+            "file",
+            "test.txt",
+            "application/octet-stream",
+            b"\x00\x01\x02\x03",
+        ));
+        body.extend(format!("--{boundary}--\r\n").as_bytes());
+
+        // Create the request
+        let req = Request::builder()
+            .method("POST")
+            .uri("/upload")
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(Body::from(body))
+            .unwrap();
+
+        // Make the request
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["id"], 1);
+        assert_eq!(json["status"], String::from("Queued"));
+        assert_eq!(json["service"], "my-test-service");
+        assert_eq!(json["user_id"], 42);
+
+        // Check if the file was saved correctly
+        let expected_loc = json["loc"].as_str().unwrap();
+        let expected_file = PathBuf::from(expected_loc).join("test.txt");
+        println!("Expected file path: {:?}", expected_file);
+        assert!(expected_file.exists());
     }
 
     #[tokio::test]

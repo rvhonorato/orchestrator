@@ -4,7 +4,6 @@ use crate::controllers::orchestrator::__path_upload;
 use crate::controllers::orchestrator::{download, upload};
 use crate::controllers::ping::ping;
 use crate::models::job_dao::Job;
-use crate::models::uploadpayload_dto::UploadPayload;
 use axum::{
     routing::{get, post},
     Router,
@@ -29,7 +28,7 @@ pub struct AppState {
         download
     ),
     components(
-        schemas(Job, UploadPayload)
+        schemas(Job)
     ),
     tags(
         (name = "files", description = "File management endpoints")
