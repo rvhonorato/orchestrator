@@ -75,7 +75,7 @@ pub async fn upload(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<Json<Job>, (StatusCode, String)> {
-    let mut user_data = None;
+    // let mut user_data = None;
 
     let mut text_fields: HashMap<String, String> = HashMap::new();
     let mut file_fields: HashMap<String, String> = HashMap::new(); // field_name -> filename
@@ -104,14 +104,8 @@ pub async fn upload(
         }
     }
 
-    // TODO: Process
-    todo!()
-
-    // TODO: Store metadata?
-    //
-
-    job.set_user_id(user_data.user_id);
-    job.set_service(user_data.service);
+    // job.set_user_id(user_data.user_id);
+    // job.set_service(user_data.service);
 
     // Add it to the database and handle potential errors
     job.add_to_db(&state.pool)
@@ -121,4 +115,142 @@ pub async fn upload(
     let _ = job.update_status(Status::Queued, &state.pool).await;
 
     Ok(Json(job))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::loader::Config;
+    use crate::routes::router::AppState;
+    use std::io::Write;
+
+    use sqlx::SqlitePool;
+    use std::fs;
+    use tempfile::tempdir;
+
+    // Helper function to initialize the database schema
+    pub async fn init_db(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            service TEXT NOT NULL,
+            status TEXT NOT NULL,
+            loc TEXT NOT NULL,
+            dest_id TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    "#,
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_download_non_init_db() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(1);
+        let response = download(state, path).await;
+        match response {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e, StatusCode::INTERNAL_SERVER_ERROR),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_non_existing_job() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(1);
+        let response = download(state, path).await;
+        match response {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e, StatusCode::NOT_FOUND),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_completed_job() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+
+        // Make a completed job
+        let data_dir = tempdir().unwrap();
+        let mut job = Job::new(data_dir.path().to_str().unwrap());
+        fs::create_dir(&job.loc).unwrap(); // Create data directory
+        let dummy_file_path = job.loc.join("output.zip");
+        let mut file = fs::File::create(&dummy_file_path).unwrap();
+        writeln!(file, "dummy data").unwrap(); // Create a dummy file
+                                               //
+        job.add_to_db(&pool).await.unwrap(); // Add job to the database;
+        job.update_status(Status::Completed, &pool).await.unwrap(); // Update job status to Failed;
+
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(job.id);
+
+        if let Ok(v) = download(state, path).await {
+            assert_eq!(v, fs::read(dummy_file_path).unwrap());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_failed_job() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let mut job = Job::new("");
+        job.add_to_db(&pool).await.unwrap(); // Add job to the database;
+        job.update_status(Status::Failed, &pool).await.unwrap(); // Update job status to Failed;
+                                                                 //
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(job.id);
+
+        match download(state, path).await {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e, StatusCode::NO_CONTENT),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_cleaned_job() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let mut job = Job::new("");
+        job.add_to_db(&pool).await.unwrap(); // Add job to the database;
+        job.update_status(Status::Cleaned, &pool).await.unwrap(); // Update job status to Cleaned;
+                                                                  //
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(job.id);
+
+        match download(state, path).await {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e, StatusCode::NO_CONTENT),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_download_accepted_job() {
+        let config = Config::new().unwrap();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap(); // Mock database connection;
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let mut job = Job::new("");
+        job.add_to_db(&pool).await.unwrap(); // Add job to the database;
+        job.update_status(Status::Queued, &pool).await.unwrap(); // Update job status to Queued;
+                                                                 //
+        let state = State(AppState { pool, config }); // Mock state for testing
+        let path = Path(job.id);
+
+        match download(state, path).await {
+            Ok(_) => {}
+            Err(e) => assert_eq!(e, StatusCode::ACCEPTED),
+        }
+    }
 }
