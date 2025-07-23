@@ -107,7 +107,10 @@ pub async fn upload(
         None => return Err((StatusCode::BAD_REQUEST, "Missing user_id".to_string())),
     };
     let service_id = match text_fields.get("service") {
-        Some(id) => id.clone(),
+        Some(id) => {
+            // TODO: Check if service is valid if not - clean
+            id.clone()
+        }
         None => return Err((StatusCode::BAD_REQUEST, "Missing service_id".to_string())),
     };
 
