@@ -191,6 +191,17 @@ mod tests {
         part.extend_from_slice(b"\r\n");
         part
     }
+    fn form_text_file(boundary: &str, name: &str, filename: &str, content: &str) -> Vec<u8> {
+        let mut part = format!(
+            "--{boundary}\r\n\
+                Content-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n\
+                Content-Type: text/plain\r\n\r\n"
+        )
+        .into_bytes();
+        part.extend_from_slice(content.as_bytes());
+        part.extend_from_slice(b"\r\n");
+        part
+    }
 
     #[tokio::test]
     async fn test_upload() {
@@ -219,6 +230,12 @@ mod tests {
             "application/octet-stream",
             b"\x00\x01\x02\x03",
         ));
+        body.extend(form_text_file(
+            &boundary,
+            "file",
+            "test01.txt",
+            "hello this is a test file",
+        ));
         body.extend(format!("--{boundary}--\r\n").as_bytes());
 
         // Create the request
@@ -246,6 +263,8 @@ mod tests {
         // Check if the file was saved correctly
         let expected_loc = json["loc"].as_str().unwrap();
         let expected_file = PathBuf::from(expected_loc).join("test.txt");
+        assert!(expected_file.exists());
+        let expected_file = PathBuf::from(expected_loc).join("test01.txt");
         assert!(expected_file.exists());
     }
 
