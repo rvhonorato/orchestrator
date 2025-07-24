@@ -7,7 +7,6 @@ use axum::{
 };
 use std::collections::HashMap;
 use utoipa;
-use utoipa::ToSchema;
 
 #[utoipa::path(
     get,
@@ -46,21 +45,14 @@ pub async fn download(
     }
 }
 
-#[derive(ToSchema)]
-#[allow(dead_code)]
-struct MultipartUpload {
-    #[schema(format = "binary", value_type = String)]
-    file: Vec<u8>,
-    #[schema(example = "{\"user_id\": 2, \"service\": \"generic\"}")]
-    data: String,
-}
 #[utoipa::path(
     post,
     path = "/upload",
     request_body(
         content_type = "multipart/form-data",
-        content = MultipartUpload,
-        description = "Upload file and metadata"
+        description = "Upload a file and metadata fields as multipart/form-data. \
+        The request must include a file field (with any filename and content type), a 'user_id' field (integer), and a 'service' field (string). \
+        Additional fields may be included as needed."
     ),
     responses(
         (status = 200, description = "File uploaded successfully", body = Job),
@@ -85,7 +77,6 @@ pub async fn upload(
             let field_name = field_name.to_string();
 
             if field.file_name().is_some() {
-                // Handle file
                 // NOTE: This is expecting filenames to be safe!!
                 let filename = field.file_name().unwrap().to_string();
                 job.save_to_disk(field, &filename).await?;
@@ -108,7 +99,14 @@ pub async fn upload(
     };
     let service_id = match text_fields.get("service") {
         Some(id) => {
-            // TODO: Check if service is valid if not - clean
+            if !state.config.services.contains_key(id) {
+                let _ = job.remove_from_disk();
+
+                return Err((
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "Invalid service".to_string(),
+                ));
+            }
             id.clone()
         }
         None => return Err((StatusCode::BAD_REQUEST, "Missing service_id".to_string())),
@@ -130,7 +128,7 @@ pub async fn upload(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::loader::Config;
+    use crate::config::loader::{Config, Service};
     use crate::routes::router::AppState;
     use axum::body::to_bytes;
     use axum::body::Body;
@@ -209,6 +207,79 @@ mod tests {
         let data_dir = tempdir().unwrap();
         let mut config = Config::new().unwrap();
         config.data_path = data_dir.path().to_str().unwrap().to_string();
+        config.services = HashMap::from([(
+            String::from("test-service"),
+            Service {
+                name: String::from("test-service"),
+                upload_url: String::from("http://localhost/upload"),
+                download_url: String::from("http://localhost/download"),
+            },
+        )]);
+
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let state = AppState { pool, config };
+
+        let app = Router::new()
+            .route("/upload", post(upload))
+            .with_state(state);
+
+        // Create a multipart/form-data request
+        let boundary = format!("----Boundary{}", Uuid::new_v4());
+        let mut body = Vec::new();
+        body.extend(form_field(&boundary, "service", "test-service"));
+        body.extend(form_field(&boundary, "user_id", "42"));
+        body.extend(form_file(
+            &boundary,
+            "file",
+            "test.txt",
+            "application/octet-stream",
+            b"\x00\x01\x02\x03",
+        ));
+        body.extend(form_text_file(
+            &boundary,
+            "file",
+            "test01.txt",
+            "hello this is a test file",
+        ));
+        body.extend(format!("--{boundary}--\r\n").as_bytes());
+
+        // Create the request
+        let req = Request::builder()
+            .method("POST")
+            .uri("/upload")
+            .header(
+                header::CONTENT_TYPE,
+                format!("multipart/form-data; boundary={}", boundary),
+            )
+            .body(Body::from(body))
+            .unwrap();
+
+        // Make the request
+        let response = app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["id"], 1);
+        assert_eq!(json["status"], String::from("Queued"));
+        assert_eq!(json["service"], String::from("test-service"));
+        assert_eq!(json["user_id"], 42);
+
+        // Check if the file was saved correctly
+        let expected_loc = json["loc"].as_str().unwrap();
+        let expected_file = PathBuf::from(expected_loc).join("test.txt");
+        assert!(expected_file.exists());
+        let expected_file = PathBuf::from(expected_loc).join("test01.txt");
+        assert!(expected_file.exists());
+    }
+
+    #[tokio::test]
+    async fn test_upload_non_existing_service() {
+        // Setup the route
+        let data_dir = tempdir().unwrap();
+        let mut config = Config::new().unwrap();
+        config.data_path = data_dir.path().to_str().unwrap().to_string();
 
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         init_db(&pool).await.unwrap(); // Initialize the database schema
@@ -251,21 +322,7 @@ mod tests {
 
         // Make the request
         let response = app.oneshot(req).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(json["id"], 1);
-        assert_eq!(json["status"], String::from("Queued"));
-        assert_eq!(json["service"], "my-test-service");
-        assert_eq!(json["user_id"], 42);
-
-        // Check if the file was saved correctly
-        let expected_loc = json["loc"].as_str().unwrap();
-        let expected_file = PathBuf::from(expected_loc).join("test.txt");
-        assert!(expected_file.exists());
-        let expected_file = PathBuf::from(expected_loc).join("test01.txt");
-        assert!(expected_file.exists());
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test]
