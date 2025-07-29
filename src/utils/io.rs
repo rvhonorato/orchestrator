@@ -1,10 +1,13 @@
 use axum::http::StatusCode;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
+use std::fs::File;
 use std::io;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
-use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
+use walkdir::WalkDir;
+use zip::write::FileOptions;
+use zip::ZipWriter;
 
 pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
     let mut file = std::fs::File::open(path)?;
@@ -46,7 +49,7 @@ pub async fn save_file(
     mut field: axum::extract::multipart::Field<'_>,
     path: &std::path::Path,
 ) -> Result<(), (StatusCode, String)> {
-    let mut file = File::create(path).await.map_err(|e| {
+    let mut file = tokio::fs::File::create(path).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("File creation failed: {e}"),
@@ -91,6 +94,59 @@ pub async fn save_file(
         )
     })?;
 
+    Ok(())
+}
+
+pub fn zip_directory(src_dir: &PathBuf, dst_file: &PathBuf) -> zip::result::ZipResult<()> {
+    // Create the output file
+    let file = File::create(dst_file)?;
+    let mut zip = ZipWriter::new(file);
+
+    // Set options for the zip file with explicit type annotation
+    let options: FileOptions<()> = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+
+    // Walk through the directory
+    let walkdir = WalkDir::new(src_dir);
+    let it = walkdir.into_iter();
+
+    for entry in it.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if let Ok(name) = path.strip_prefix(src_dir) {
+            // Skip the root directory itself
+            if name.as_os_str().is_empty() {
+                continue;
+            }
+
+            // Convert path to string
+            let name_str = name.to_str().ok_or_else(|| {
+                zip::result::ZipError::Io(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid UTF-8 in file path",
+                ))
+            })?;
+
+            if path.is_dir() {
+                // Add directory entry
+                zip.add_directory(name_str, options)?;
+            } else {
+                // Add file to the zip archive
+                zip.start_file(name_str, options)?;
+                let mut f = File::open(path)?;
+                let mut buffer = Vec::new();
+                f.read_to_end(&mut buffer)?;
+                zip.write_all(&buffer)?;
+            }
+        } else {
+            return Err(zip::result::ZipError::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Path prefix mismatch",
+            )));
+        }
+    }
+
+    zip.finish()?;
     Ok(())
 }
 

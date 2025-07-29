@@ -1,6 +1,7 @@
 use crate::models::job_dao::Job;
 use crate::services::orchestrator::Endpoint;
 use crate::services::orchestrator::UploadError;
+use crate::utils;
 use crate::utils::io::base64_to_file;
 use crate::utils::io::stream_file_to_base64;
 use axum::http::StatusCode;
@@ -42,8 +43,13 @@ struct JobdResponse {
 }
 
 async fn prepare_upload_data(job: &Job) -> Result<serde_json::Value, UploadError> {
-    let path = job.loc.join("payload.zip");
-    let input_as_base64 = stream_file_to_base64(path.to_str().ok_or(UploadError::InvalidPath)?)?;
+    // Check if directory is empty
+    if std::fs::read_dir(&job.loc)?.next().is_none() {
+        return Err(UploadError::EmptyDirectory);
+    }
+    let payload = job.loc.join("payload.zip");
+    let _ = utils::io::zip_directory(&job.loc, &payload);
+    let input_as_base64 = stream_file_to_base64(payload.to_str().ok_or(UploadError::InvalidPath)?)?;
 
     Ok(json!({
         "id": Uuid::new_v4().to_string(),
@@ -84,7 +90,7 @@ async fn handle_upload_response(response: reqwest::Response) -> Result<String, U
 }
 
 fn construct_download_url(base_url: &str, dest_id: &str) -> String {
-    format!("{}/{}", base_url, dest_id)
+    format!("{base_url}/{dest_id}")
 }
 
 async fn fetch_download_response(url: &str) -> Result<String, DownloadError> {
@@ -156,7 +162,7 @@ mod test {
         {
             let tempdir = TempDir::new().unwrap();
             let mut job = Job::new(tempdir.path().to_str().unwrap());
-            let file_path = tempdir.path().join("payload.zip");
+            let file_path = tempdir.path().join("output.txt");
             let mut tempfile = File::create(file_path).unwrap();
             writeln!(tempfile, "test").unwrap();
 
@@ -497,7 +503,7 @@ mod test {
 
         // Set up mock server
         let mock = server
-            .mock("GET", format!("/{}", dest_id).as_str())
+            .mock("GET", format!("/{dest_id}").as_str())
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(serde_json::to_string(&jobd_response).unwrap())

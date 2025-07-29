@@ -153,7 +153,7 @@ mod test {
     async fn test_sender() {
         let pool = SqlitePool::connect(":memory:")
             .await
-            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+            .unwrap_or_else(|e| panic!("Database connection failed: {e}"));
         let config = Config::new().unwrap();
 
         create_jobs_table(&pool).await.unwrap();
@@ -183,7 +183,7 @@ mod test {
     async fn test_getter() {
         let pool = SqlitePool::connect(":memory:")
             .await
-            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+            .unwrap_or_else(|e| panic!("Database connection failed: {e}"));
         let config = Config::new().unwrap();
 
         create_jobs_table(&pool).await.unwrap();
@@ -213,7 +213,7 @@ mod test {
     async fn test_cleaner() {
         let pool = SqlitePool::connect(":memory:")
             .await
-            .unwrap_or_else(|e| panic!("Database connection failed: {}", e));
+            .unwrap_or_else(|e| panic!("Database connection failed: {e}"));
         let mut config = Config::new().unwrap();
 
         create_jobs_table(&pool).await.unwrap();
