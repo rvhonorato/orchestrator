@@ -4,7 +4,7 @@ use crate::controllers::orchestrator::__path_upload;
 use crate::controllers::orchestrator::{download, upload};
 use crate::controllers::ping::ping;
 use crate::models::job_dao::Job;
-use crate::models::uploadpayload_dto::UploadPayload;
+use axum::extract::DefaultBodyLimit;
 use axum::{
     routing::{get, post},
     Router,
@@ -29,7 +29,7 @@ pub struct AppState {
         download
     ),
     components(
-        schemas(Job, UploadPayload)
+        schemas(Job)
     ),
     tags(
         (name = "files", description = "File management endpoints")
@@ -50,4 +50,6 @@ pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
                 .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
+        // .layer(DefaultBodyLimit::disable())
+        .layer(DefaultBodyLimit::max(400 * 1024 * 1024)) // Set max body size to 400MB
 }

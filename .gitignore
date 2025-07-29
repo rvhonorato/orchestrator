@@ -10,3 +10,4 @@ uploads
 dev
 orchestrator-wd-data
 *html
+db.sqlite

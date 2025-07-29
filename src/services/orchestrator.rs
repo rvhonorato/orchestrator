@@ -20,6 +20,8 @@ pub enum UploadError {
     DeserializationFailed(#[from] serde_json::Error),
     #[error("Unexpected status code: {0}")]
     UnexpectedStatus(StatusCode),
+    #[error("Empty directory")]
+    EmptyDirectory,
 }
 #[derive(Debug, thiserror::Error)]
 pub enum DownloadError {
