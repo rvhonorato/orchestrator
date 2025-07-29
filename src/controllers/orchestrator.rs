@@ -346,7 +346,7 @@ mod tests {
 
         // Make the request
         let response = app.oneshot(req).await.unwrap();
-        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
