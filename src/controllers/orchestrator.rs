@@ -1,11 +1,13 @@
 use crate::models::job_dao::Job;
 use crate::models::status_dto::Status;
 use crate::routes::router::AppState;
+use crate::utils::io::{sanitize_filename, save_file};
 use axum::{
     extract::{Json, Multipart, Path, State},
     http::StatusCode,
 };
 use std::collections::HashMap;
+use tokio::fs::create_dir_all;
 use utoipa;
 
 #[utoipa::path(
@@ -66,61 +68,83 @@ pub async fn upload(
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<Json<Job>, (StatusCode, String)> {
-    // let mut user_data = None;
-
-    let mut text_fields: HashMap<String, String> = HashMap::new();
+    // Create a new job with unique ID
     let mut job = Job::new(&state.config.data_path);
 
-    // Collect all fields
-    while let Ok(Some(field)) = multipart.next_field().await {
-        if let Some(field_name) = field.name() {
-            let field_name = field_name.to_string();
+    // Create job directory
+    create_dir_all(&job.loc).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create directory: {e}"),
+        )
+    })?;
 
-            if field.file_name().is_some() {
-                // NOTE: This is expecting filenames to be safe!!
-                let filename = field.file_name().unwrap().to_string();
-                job.save_to_disk(field, &filename).await?;
-            } else {
-                // Handle text
-                let text_data = field
-                    .text()
-                    .await
-                    .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-                text_fields.insert(field_name, text_data);
-            }
+    let mut text_fields = HashMap::new();
+    let mut file_count = 0;
+
+    // Process each field in the multipart stream
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Multipart error: {e}");
+        (StatusCode::BAD_REQUEST, format!("Multipart error: {e}"))
+    })? {
+        let field_name = field.name().unwrap_or("unnamed").to_string();
+
+        if let Some(filename) = field.file_name() {
+            file_count += 1;
+            let filename = sanitize_filename(filename); // Important for security!
+            let file_path = job.loc.join(&filename);
+
+            tracing::info!("Saving file: {} to {}", filename, file_path.display());
+
+            // Create and save the file
+            save_file(field, &file_path).await?;
+        } else {
+            // Handle text field
+            let text = field.text().await.map_err(|e| {
+                tracing::error!("Error reading text field: {e}");
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("Error reading text field: {e}"),
+                )
+            })?;
+            text_fields.insert(field_name, text);
         }
     }
 
-    let user_id = match text_fields.get("user_id") {
-        Some(id) => id
-            .parse::<i32>()
-            .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid user_id".to_string()))?,
-        None => return Err((StatusCode::BAD_REQUEST, "Missing user_id".to_string())),
-    };
-    let service_id = match text_fields.get("service") {
-        Some(id) => {
-            if !state.config.services.contains_key(id) {
-                let _ = job.remove_from_disk();
+    tracing::info!(
+        "Upload completed: {} files saved, {} text fields",
+        file_count,
+        text_fields.len()
+    );
 
-                return Err((
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    "Invalid service".to_string(),
-                ));
-            }
-            id.clone()
-        }
-        None => return Err((StatusCode::BAD_REQUEST, "Missing service_id".to_string())),
-    };
+    // Now handle special fields
+    let user_id = text_fields
+        .get("user_id")
+        .ok_or((StatusCode::BAD_REQUEST, "Missing user_id".to_string()))?
+        .parse::<i32>()
+        .map_err(|_| (StatusCode::BAD_REQUEST, "Invalid user_id".to_string()))?;
+
+    let service = text_fields
+        .get("service")
+        .ok_or((StatusCode::BAD_REQUEST, "Missing service".to_string()))?
+        .to_string();
+
+    // Validate service exists
+    if !state.config.services.contains_key(&service) {
+        return Err((StatusCode::BAD_REQUEST, "Invalid service".to_string()));
+    }
 
     job.set_user_id(user_id);
-    job.set_service(service_id);
+    job.set_service(service);
 
-    // Add it to the database and handle potential errors
+    // Add job to database
     job.add_to_db(&state.pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let _ = job.update_status(Status::Queued, &state.pool).await;
+    job.update_status(Status::Queued, &state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(job))
 }
@@ -250,7 +274,7 @@ mod tests {
             .uri("/upload")
             .header(
                 header::CONTENT_TYPE,
-                format!("multipart/form-data; boundary={}", boundary),
+                format!("multipart/form-data; boundary={boundary}"),
             )
             .body(Body::from(body))
             .unwrap();
@@ -315,7 +339,7 @@ mod tests {
             .uri("/upload")
             .header(
                 header::CONTENT_TYPE,
-                format!("multipart/form-data; boundary={}", boundary),
+                format!("multipart/form-data; boundary={boundary}"),
             )
             .body(Body::from(body))
             .unwrap();

@@ -1,36 +1,10 @@
 use axum::http::StatusCode;
-use axum::{body::Bytes, BoxError};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use futures::Stream;
-use futures::TryStreamExt;
 use std::io;
 use std::io::Read;
 use std::path::PathBuf;
-use tokio::{fs::File, io::BufWriter};
-use tokio_util::io::StreamReader;
-
-pub async fn stream_to_file<S, E>(filename: PathBuf, stream: S) -> Result<(), (StatusCode, String)>
-where
-    S: Stream<Item = Result<Bytes, E>>,
-    E: Into<BoxError>,
-{
-    async {
-        // Convert the stream into an AsyncRead.
-        let body_with_io_error = stream.map_err(|err| io::Error::new(io::ErrorKind::Other, err));
-        let body_reader = StreamReader::new(body_with_io_error);
-        futures::pin_mut!(body_reader);
-
-        // Create the file. File implements AsyncWrite.
-        let mut file = BufWriter::new(File::create(filename).await?);
-
-        // Copy the body into the file.
-        tokio::io::copy(&mut body_reader, &mut file).await?;
-
-        Ok::<_, io::Error>(())
-    }
-    .await
-    .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))
-}
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
     let mut file = std::fs::File::open(path)?;
@@ -58,29 +32,74 @@ pub fn base64_to_file(base64_content: &str, output_path: PathBuf) -> io::Result<
     Ok(())
 }
 
+/// Sanitize filename to prevent path traversal attacks
+pub fn sanitize_filename(filename: &str) -> String {
+    std::path::Path::new(filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("file")
+        .to_string()
+}
+
+/// Save a multipart field to disk
+pub async fn save_file(
+    mut field: axum::extract::multipart::Field<'_>,
+    path: &std::path::Path,
+) -> Result<(), (StatusCode, String)> {
+    let mut file = File::create(path).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("File creation failed: {e}"),
+        )
+    })?;
+
+    let mut buffer = Vec::with_capacity(1024 * 1024); // 1MB buffer
+
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Chunk read failed: {e}")))?
+    {
+        buffer.extend_from_slice(&chunk);
+
+        // Write in chunks to balance memory and performance
+        if buffer.len() >= 1024 * 1024 {
+            file.write_all(&buffer).await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Write failed: {e}"),
+                )
+            })?;
+            buffer.clear();
+        }
+    }
+
+    // Write remaining data
+    if !buffer.is_empty() {
+        file.write_all(&buffer).await.map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Final write failed: {e}"),
+            )
+        })?;
+    }
+
+    file.flush().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Flush failed: {e}"),
+        )
+    })?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::Bytes;
     use std::fs;
     use std::io::Write;
     use tempfile::NamedTempFile;
-
-    #[tokio::test]
-    async fn test_stream_to_file() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let file_path = temp_file.path().to_path_buf();
-
-        let stream = tokio_stream::iter(vec![Ok::<bytes::Bytes, BoxError>(Bytes::from_static(
-            b"hello",
-        ))]);
-
-        let result = stream_to_file(file_path.clone(), stream).await;
-        assert!(result.is_ok());
-
-        let content = tokio::fs::read_to_string(file_path).await.unwrap();
-        assert_eq!(content, "hello")
-    }
 
     #[test]
     fn test_stream_file_to_base64() {

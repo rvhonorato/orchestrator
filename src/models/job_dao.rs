@@ -1,8 +1,4 @@
 use crate::models::status_dto::Status;
-use crate::utils::io::stream_to_file;
-use axum::http::StatusCode;
-use axum::{body::Bytes, BoxError};
-use futures::Stream;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
@@ -33,24 +29,6 @@ impl Job {
         }
     }
 
-    pub async fn save_to_disk<S, E>(
-        &mut self,
-        stream: S,
-        filename: &String,
-    ) -> Result<(), (StatusCode, String)>
-    where
-        S: Stream<Item = Result<Bytes, E>>,
-        E: Into<BoxError>,
-    {
-        match fs::create_dir(&self.loc) {
-            Ok(_) => (),
-            Err(e) => println!("could not create directory {}", e),
-        }
-        let full_path = std::path::Path::join(&self.loc, filename);
-        stream_to_file(full_path, stream).await?;
-        Ok(())
-    }
-
     pub fn download(self) -> Vec<u8> {
         let mut file = fs::File::open(self.loc.join("output.zip")).unwrap();
         let mut buffer = Vec::new();
@@ -75,29 +53,9 @@ impl Job {
 mod test {
 
     use super::*;
-    use bytes::Bytes;
     use std::fs;
     use std::path::Path;
     use tempfile::TempDir;
-
-    #[tokio::test]
-    async fn test_save_to_disk() {
-        let tempdir = TempDir::new().unwrap();
-        let mut job = Job::new(tempdir.path().to_str().unwrap());
-
-        let stream = tokio_stream::iter(vec![Ok::<bytes::Bytes, BoxError>(Bytes::from_static(
-            b"hello",
-        ))]);
-        let filename = String::from("test.txt");
-
-        let result = job.save_to_disk(stream, &filename).await;
-        assert!(result.is_ok());
-
-        let content = tokio::fs::read_to_string(job.loc.join(&filename))
-            .await
-            .unwrap();
-        assert_eq!(content, "hello");
-    }
 
     #[tokio::test]
     async fn test_download() {

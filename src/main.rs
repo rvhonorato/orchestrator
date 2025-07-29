@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize a logger
     tracing_subscriber::fmt()
         .with_target(false)
-        // .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .compact()
         .init();
 
@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     let app = create_routes(pool.clone(), config.clone());
 
     // Initialize socket
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 5000));
     tracing::info!("listening on {}", addr);
 
     let listener = TcpListener::bind(addr).await?;
