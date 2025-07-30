@@ -47,9 +47,13 @@ async fn prepare_upload_data(job: &Job) -> Result<serde_json::Value, UploadError
     if std::fs::read_dir(&job.loc)?.next().is_none() {
         return Err(UploadError::EmptyDirectory);
     }
-    let payload = job.loc.join("payload.zip");
+
+    let payload = std::env::temp_dir().join("payload.zip");
+
     let _ = utils::io::zip_directory(&job.loc, &payload);
     let input_as_base64 = stream_file_to_base64(payload.to_str().ok_or(UploadError::InvalidPath)?)?;
+
+    std::fs::remove_file(payload)?;
 
     Ok(json!({
         "id": Uuid::new_v4().to_string(),
