@@ -6,6 +6,7 @@ use crate::utils::io::base64_to_file;
 use crate::utils::io::stream_file_to_base64;
 use axum::http::StatusCode;
 use serde_json::json;
+use tempfile::TempDir;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -47,7 +48,8 @@ async fn prepare_upload_data(job: &Job) -> Result<serde_json::Value, UploadError
     if std::fs::read_dir(&job.loc)?.next().is_none() {
         return Err(UploadError::EmptyDirectory);
     }
-    let payload = job.loc.join("payload.zip");
+    let tempdir = TempDir::new().unwrap();
+    let payload = tempdir.path().join("payload.zip");
     let _ = utils::io::zip_directory(&job.loc, &payload);
     let input_as_base64 = stream_file_to_base64(payload.to_str().ok_or(UploadError::InvalidPath)?)?;
 
