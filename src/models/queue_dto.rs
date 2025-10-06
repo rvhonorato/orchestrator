@@ -68,11 +68,11 @@ impl Queue<'_> {
         for row in rows {
             let user_id: i64 = row.get("user_id");
             let service: String = row.get("service");
-            let status: String = row.get("status");
-            info!(
-                "DB Row: user_id={}, service={}, status={}",
-                user_id, service, status
-            );
+            // let status: String = row.get("status");
+            // info!(
+            //     "DB Row: user_id={}, service={}, status={}",
+            //     user_id, service, status
+            // );
 
             // Check what is the limit for this service
             let limit = *service_limits.entry(service.clone()).or_insert_with(|| {
@@ -86,10 +86,10 @@ impl Queue<'_> {
             let submitted = *submitted_counts
                 .get(&(user_id, service.clone()))
                 .unwrap_or(&0);
-            info!(
-                "User: {}, Service: {}, Submitted: {}, Limit: {}",
-                user_id, service, submitted, limit
-            );
+            // info!(
+            //     "User: {}, Service: {}, Submitted: {}, Limit: {}",
+            //     user_id, service, submitted, limit
+            // );
             // Check if this user/service combo can take more jobs
             let key = (user_id, service.clone());
             let user_queue = jobs_by_user_service.entry(key).or_default();
