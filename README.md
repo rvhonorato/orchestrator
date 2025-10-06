@@ -108,7 +108,7 @@ curl -o results.zip http://localhost:5000/download/1
 ### Extra: Submit a large volume to see the queue in action
 
 ```bash
-for i in {1..200}; do
+for i in {1..250}; do
   cat <<EOF > run.sh
 #!/bin/bash
 # Pretend we are calculating something
@@ -122,8 +122,10 @@ EOF
     -F "service=generic" > /dev/null
   echo "Submitted job $i"
 done
-
 ```
+
+> On the logs of the `orchestrator` container, you will the jobs being processed
+> in batches
 
 ## Implementation
 
