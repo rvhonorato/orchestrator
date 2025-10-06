@@ -13,7 +13,7 @@ the [BonvinLab](https://bonvinlab.org) at the [Utrecht University](https://uu.nl
 It is closely coupled with [`jobd`](https://github.com/rvhonorato/jobd),
 with more destinations to be added in the future such as:
 
-- [DIRAC interware](https://dirac.readthedocs.io/en/latest/index.html)
+- [DIRAC Interware](https://dirac.readthedocs.io/en/latest/index.html)
 - Educational cloud services
 - SLURM
 
@@ -33,6 +33,75 @@ flowchart LR
     E -->|slurml| H[local HPC]
 ```
 
+## Example deployment
+
+```bash
+docker compose -f deployment/docker_compose.yml --project-directory . up
+```
+
+Create a dummy run script:
+
+```bash
+cat <<EOF > run.sh
+#!/bin/bash
+# Pretend we are calculating something
+sleep $((RANDOM % 3 + 1))m
+# Done!
+echo 'This is a downloadable file.' > output.txt
+EOF
+```
+
+POST it
+
+```bash
+curl -s -X POST http://localhost:5000/upload \
+  -F "file=@run.sh" \
+  -F "user_id=1" \
+  -F "service=generic" | jq
+```
+
+It will return some information:
+
+```json
+{
+  "id": 1,
+  "user_id": 1,
+  "service": "generic",
+  "status": "Queued",
+  "loc": "/opt/data/978e5a14-dc94-46ab-9507-fe0a94d688b8",
+  "dest_id": ""
+}
+```
+
+CHECK the status:
+
+```bash
+$ curl -I http://localhost:5000/download/1
+HTTP/1.1 202 Accepted
+content-length: 0
+date: Mon, 06 Oct 2025 14:10:44 GMT
+```
+
+- `200`, File downloaded successfully
+- `202`, Job not ready,
+- `204`, Job failed or cleaned
+- `404`, Job not found
+- `500`, Internal server error
+
+GET it
+
+```bash
+curl -I http://localhost:5000/download/16 user-limit ✭ ✱
+HTTP/1.1 200 OK
+content-type: application/octet-stream
+content-length: 380
+date: Mon, 06 Oct 2025 14:13:16 GMT
+```
+
+```bash
+curl -o results.zip http://localhost:5000/download/1
+```
+
 ## Implementation
 
 🚧 soon 🚧
@@ -43,4 +112,5 @@ flowchart LR
 
 ## Contact
 
-If you think this project would be useful for your use case or would like to suggest something, please reach out either via issue here or via email. (:
+If you think this project would be useful for your use case or would like to
+suggest something, please reach out either via issue here or via email. (:
