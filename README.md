@@ -39,7 +39,7 @@ flowchart LR
 $ docker compose \
   -f deployment/docker_compose.yml \
   --project-directory .\
-  up
+  up -d
 ```
 
 ### Create a dummy run script
@@ -112,7 +112,7 @@ for i in {1..250}; do
   cat <<EOF > run.sh
 #!/bin/bash
 # Pretend we are calculating something
-sleep \$((RANDOM % 3 + 1))m
+sleep \$((RANDOM % 36 + 25))
 # Done!
 echo 'This is a downloadable file.' > output.txt
 EOF
@@ -124,8 +124,16 @@ EOF
 done
 ```
 
-> On the logs of the `orchestrator` container, you will the jobs being processed
-> in batches
+See the logs of the `orchestrator` container:
+
+```bash
+  -f deployment/docker_compose.yml \
+  --project-directory .\
+  logs orchestrator --follow
+```
+
+You will see jobs being picked up and sent to `jobd` gradually,
+following the quota defined in the configuration file via `SERVICE_GENERIC_RUNS_PER_USER`
 
 ## Implementation
 

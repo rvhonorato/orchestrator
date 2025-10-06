@@ -4,7 +4,6 @@ use super::{queue_dao::Queue, status_dto::Status};
 use crate::models::job_dao::Job;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
-use tracing::info;
 
 impl Queue<'_> {
     pub async fn list_per_status(
