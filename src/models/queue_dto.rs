@@ -73,6 +73,7 @@ impl Queue<'_> {
         let mut current_limit = 0;
 
         for row in rows {
+            // Extract row data
             let user_id: i64 = row.get("user_id");
             let service: String = row.get("service");
             let submitted_count: i64 = row.get("submitted_count");
@@ -80,14 +81,17 @@ impl Queue<'_> {
             let key = (user_id, service);
             let limit = service_limits.get(key.1.as_str()).copied().unwrap();
 
-            // Reset counter when key changes
+            // Detect new user/service group and reset counters
+            // NOTE: The rows are ordered by (user_id, service, id), so when we move
+            //   to a new (user_id, service) pair, we reset the counters.
             if Some(&key) != current_key.as_ref() {
                 current_key = Some(key.clone());
                 current_count = 0;
+                // Calculate available slots: limit minus already submitted jobs
                 current_limit = (limit as i64 - submitted_count).max(0) as usize;
             }
 
-            // Add job if under limit
+            // Process job if we have available slots
             if current_count < current_limit {
                 let status: String = row.get("status");
                 let loc: String = row.get("loc");
@@ -101,8 +105,9 @@ impl Queue<'_> {
                     dest_id: row.get("dest_id"),
                 });
 
-                current_count += 1;
+                current_count += 1; // Track jobs processed in current group
             }
+            // Jobs beyond the limit are silently skipped
         }
 
         self.jobs = jobs;
@@ -226,5 +231,27 @@ mod tests {
         let jobs_for_c = queue.jobs.iter().filter(|j| j.service == "C").count();
         let expected_c = 2;
         assert_eq!(jobs_for_c, expected_c);
+
+        // Add more jobs for user 3 to test isolation
+        for _ in 0..3 {
+            sqlx::query("INSERT INTO jobs (user_id, service, status, loc, dest_id) VALUES (3, 'A', 'queued', 'loc', NULL)")
+                .execute(&pool).await.unwrap();
+        }
+
+        for _ in 0..4 {
+            sqlx::query("INSERT INTO jobs (user_id, service, status, loc, dest_id) VALUES (3, 'B', 'queued', 'loc', NULL)")
+                .execute(&pool).await.unwrap();
+        }
+
+        for _ in 0..2 {
+            sqlx::query("INSERT INTO jobs (user_id, service, status, loc, dest_id) VALUES (3, 'C', 'queued', 'loc', NULL)")
+                .execute(&pool).await.unwrap();
+        }
+
+        // Reload the queue
+        queue.load(&pool).await.unwrap();
+        let jobs_for_user3: Vec<&Job> = queue.jobs.iter().filter(|j| j.user_id == 3).collect();
+        let expected_user3 = 8; // 3 (A) + 4 (B) + 1 (C)
+        assert_eq!(jobs_for_user3.len(), expected_user3);
     }
 }
