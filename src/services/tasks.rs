@@ -70,7 +70,7 @@ pub async fn cleaner(pool: SqlitePool, config: Config) {
 
 pub async fn sender(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new(&config);
-    if queue.load(Status::Queued, &pool).await.is_ok() {
+    if queue.load(&pool).await.is_ok() {
         // info!("{:?}", queue.jobs.len());
         let futures = queue
             .jobs
@@ -144,6 +144,7 @@ pub async fn getter(pool: SqlitePool, config: Config) {
 mod test {
 
     use super::*;
+    use crate::config::loader::{Config, Service};
     use crate::models::{job_dao::Job, job_dto::create_jobs_table};
     use std::{path::Path, time::Duration};
     use tempfile::TempDir;
@@ -154,13 +155,23 @@ mod test {
         let pool = SqlitePool::connect(":memory:")
             .await
             .unwrap_or_else(|e| panic!("Database connection failed: {e}"));
-        let config = Config::new().unwrap();
+        let mut config = Config::new().unwrap();
+        config.services.insert(
+            "A".to_string(),
+            Service {
+                name: "A".to_string(),
+                upload_url: "http://example.com/upload_a".to_string(),
+                download_url: "http://example.com/download_a".to_string(),
+                runs_per_user: 5,
+            },
+        );
 
         create_jobs_table(&pool).await.unwrap();
 
         // add a job
         let tempdir = TempDir::new().unwrap();
         let mut job = Job::new(tempdir.path().to_str().unwrap());
+        job.set_service("A".to_string());
         job.add_to_db(&pool).await.unwrap();
         job.update_status(Status::Queued, &pool).await.unwrap();
         let id = job.id;

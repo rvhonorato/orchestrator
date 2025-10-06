@@ -18,6 +18,7 @@ pub struct Service {
     pub name: String,
     pub upload_url: String,
     pub download_url: String,
+    pub runs_per_user: u16,
 }
 
 impl Config {
@@ -40,14 +41,18 @@ impl Config {
                             name: service_name.to_string().to_ascii_lowercase(),
                             upload_url: String::new(),
                             download_url: String::new(),
+                            runs_per_user: u16::MIN,
                         });
 
                     // Assign the corresponding URL based on the type
-                    if service_type == "UPLOAD" {
-                        service.upload_url = value;
-                    } else if service_type == "DOWNLOAD" {
-                        service.download_url = value;
-                    }
+                    match service_type {
+                        "UPLOAD" => service.upload_url = value,
+                        "DOWNLOAD" => service.download_url = value,
+                        "RUNS_PER_USER" => {
+                            service.runs_per_user = value.parse::<u16>().unwrap_or(5)
+                        }
+                        _ => continue, // Skip if it's not a recognized type
+                    };
                 }
             }
         }
