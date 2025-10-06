@@ -4,6 +4,7 @@ use super::{queue_dao::Queue, status_dto::Status};
 use crate::models::job_dao::Job;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
+use tracing::info;
 
 impl Queue<'_> {
     pub async fn list_per_status(
@@ -35,84 +36,179 @@ impl Queue<'_> {
         Ok(())
     }
     pub async fn load(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
-        let query = r#"
-            -- Combined query: Get queued jobs with their respective submitted job counts
-            -- Uses CTE to precompute submitted counts per user/service, then joins with queued jobs
-            WITH submitted_counts AS (
-                SELECT user_id, service, COUNT(*) as count
-                FROM jobs
-                WHERE status = 'submitted'
-                GROUP BY user_id, service
-            )
-            SELECT
-                j.id, j.user_id, j.service, j.status, j.loc, j.dest_id,
-                COALESCE(sc.count, 0) as submitted_count  -- Default to 0 if no submitted jobs
-            FROM jobs j
-            LEFT JOIN submitted_counts sc ON j.user_id = sc.user_id AND j.service = sc.service
-            WHERE j.status = ?  -- Parameterized for queued jobs
-            ORDER BY j.user_id, j.service, j.id  -- Group related records for efficient processing
-        "#;
-
-        let rows = sqlx::query(query)
+        // ===========================================================================================
+        // Step 1: Get all QUEUED jobs
+        let rows = sqlx::query("SELECT * FROM jobs WHERE status = ?")
             .bind(Status::Queued.to_string())
             .fetch_all(pool)
             .await?;
 
-        // Precompute limits
-        let service_limits: HashMap<&str, u16> = self
-            .config
-            .services
-            .iter()
-            .map(|(service, config)| (service.as_str(), config.runs_per_user))
-            .collect();
-
-        // Process jobs
-        let mut jobs = Vec::new();
-        let mut current_key = None;
-        let mut current_count = 0;
-        let mut current_limit = 0;
-
-        for row in rows {
-            // Extract row data
+        // ===========================================================================================
+        // Step 2: Get submitted job counts per user/service
+        let submitted_rows = sqlx::query(
+            "SELECT user_id, service, COUNT(*) as count FROM jobs WHERE status = 'submitted' GROUP BY user_id, service"
+        )
+        .fetch_all(pool)
+        .await?;
+        let mut submitted_counts: HashMap<(i64, String), u16> = HashMap::new();
+        for row in submitted_rows {
             let user_id: i64 = row.get("user_id");
             let service: String = row.get("service");
-            let submitted_count: i64 = row.get("submitted_count");
+            let count: i64 = row.get("count");
+            submitted_counts.insert((user_id, service), count as u16);
+        }
 
-            let key = (user_id, service);
-            let limit = service_limits.get(key.1.as_str()).copied().unwrap();
+        // ===========================================================================================
+        // Step 3: Filter jobs according to config limits
+        // jobs_by_user_service will hold the jobs to be processed
+        let mut jobs_by_user_service: HashMap<(i64, String), Vec<Job>> = HashMap::new();
+        // service_limits will cache the limits per service, so we don't have to look them up
+        // multiple times
+        let mut service_limits: HashMap<String, u16> = HashMap::new();
+        for row in rows {
+            let user_id: i64 = row.get("user_id");
+            let service: String = row.get("service");
+            let status: String = row.get("status");
+            info!(
+                "DB Row: user_id={}, service={}, status={}",
+                user_id, service, status
+            );
 
-            // Detect new user/service group and reset counters
-            // NOTE: The rows are ordered by (user_id, service, id), so when we move
-            //   to a new (user_id, service) pair, we reset the counters.
-            if Some(&key) != current_key.as_ref() {
-                current_key = Some(key.clone());
-                current_count = 0;
-                // Calculate available slots: limit minus already submitted jobs
-                current_limit = (limit as i64 - submitted_count).max(0) as usize;
-            }
-
-            // Process job if we have available slots
-            if current_count < current_limit {
+            // Check what is the limit for this service
+            // let limit = *service_limits.entry(service.clone()).or_insert_with(|| {
+            //     self.config
+            //         .services
+            //         .get(&service)
+            //         .map(|s| s.runs_per_user)
+            //         .unwrap()
+            // });
+            let limit = 5;
+            let submitted = *submitted_counts
+                .get(&(user_id, service.clone()))
+                .unwrap_or(&0);
+            info!(
+                "User: {}, Service: {}, Submitted: {}, Limit: {}",
+                user_id, service, submitted, limit
+            );
+            // Check if this user/service combo can take more jobs
+            let key = (user_id, service.clone());
+            let user_queue = jobs_by_user_service.entry(key).or_default();
+            let remaining_slots = (limit - submitted) as usize;
+            // if submitted < limit, we can add more jobs, it has not yet reached the limit
+            // if user_queue.len() < remaining_slots, we can still add to this user's queue
+            info!(
+                "User: {}, Service: {}, Current Queue Length: {}, Remaining Slots: {}",
+                user_id,
+                service,
+                user_queue.len(),
+                remaining_slots
+            );
+            if submitted < limit && user_queue.len() < remaining_slots {
                 let status: String = row.get("status");
                 let loc: String = row.get("loc");
-
-                jobs.push(Job {
+                user_queue.push(Job {
                     id: row.get("id"),
                     user_id: user_id.try_into().unwrap(),
-                    service: key.1.clone(),
+                    service: service.clone(),
                     status: Status::from_string(&status),
                     loc: PathBuf::from(loc),
                     dest_id: row.get("dest_id"),
                 });
-
-                current_count += 1; // Track jobs processed in current group
             }
-            // Jobs beyond the limit are silently skipped
         }
 
-        self.jobs = jobs;
+        // ===========================================================================================
+        // Step 4: Flatten the jobs_by_user_service into self.jobs
+        self.jobs = jobs_by_user_service.into_values().flatten().collect();
         Ok(())
     }
+    // pub async fn load(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    //     let debug_rows = sqlx::query("SELECT * FROM jobs").fetch_all(pool).await?;
+    //     for row in &debug_rows {
+    //         let user_id: i64 = row.get("user_id");
+    //         let service: String = row.get("service");
+    //         let status: String = row.get("status");
+    //         info!(
+    //             "DB Row: user_id={}, service={}, status={}",
+    //             user_id, service, status
+    //         );
+    //     }
+    //
+    //     let query = r#"
+    //         -- Combined query: Get queued jobs with their respective submitted job counts
+    //         -- Uses CTE to precompute submitted counts per user/service, then joins with queued jobs
+    //         WITH submitted_counts AS (
+    //             SELECT user_id, service, COUNT(*) as count
+    //             FROM jobs
+    //             WHERE status = 'submitted'
+    //             GROUP BY user_id, service
+    //         )
+    //         SELECT
+    //             j.id, j.user_id, j.service, j.status, j.loc, j.dest_id,
+    //             COALESCE(sc.count, 0) as submitted_count  -- Default to 0 if no submitted jobs
+    //         FROM jobs j
+    //         LEFT JOIN submitted_counts sc ON j.user_id = sc.user_id AND j.service = sc.service
+    //         WHERE j.status = 'queued' -- Parameterized for queued jobs
+    //         ORDER BY j.user_id, j.service, j.id  -- Group related records for efficient processing
+    //     "#;
+    //
+    //     let rows = sqlx::query(query).fetch_all(pool).await?;
+    //
+    //     // Precompute limits
+    //     let service_limits: HashMap<&str, u16> = self
+    //         .config
+    //         .services
+    //         .iter()
+    //         .map(|(service, config)| (service.as_str(), config.runs_per_user))
+    //         .collect();
+    //
+    //     // Process jobs
+    //     let mut jobs = Vec::new();
+    //     let mut current_key = None;
+    //     let mut current_count = 0;
+    //     let mut current_limit = 0;
+    //
+    //     for row in rows {
+    //         // Extract row data
+    //         let user_id: i64 = row.get("user_id");
+    //         let service: String = row.get("service");
+    //         let submitted_count: i64 = row.get("submitted_count");
+    //
+    //         let key = (user_id, service);
+    //         let limit = service_limits.get(key.1.as_str()).copied().unwrap();
+    //
+    //         // Detect new user/service group and reset counters
+    //         // NOTE: The rows are ordered by (user_id, service, id), so when we move
+    //         //   to a new (user_id, service) pair, we reset the counters.
+    //         if Some(&key) != current_key.as_ref() {
+    //             current_key = Some(key.clone());
+    //             current_count = 0;
+    //             // Calculate available slots: limit minus already submitted jobs
+    //             current_limit = (limit as i64 - submitted_count).max(0) as usize;
+    //         }
+    //
+    //         // Process job if we have available slots
+    //         if current_count < current_limit {
+    //             let status: String = row.get("status");
+    //             let loc: String = row.get("loc");
+    //
+    //             jobs.push(Job {
+    //                 id: row.get("id"),
+    //                 user_id: user_id.try_into().unwrap(),
+    //                 service: key.1.clone(),
+    //                 status: Status::from_string(&status),
+    //                 loc: PathBuf::from(loc),
+    //                 dest_id: row.get("dest_id"),
+    //             });
+    //
+    //             current_count += 1; // Track jobs processed in current group
+    //         }
+    //         // Jobs beyond the limit are silently skipped
+    //     }
+    //
+    //     self.jobs = jobs;
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]
