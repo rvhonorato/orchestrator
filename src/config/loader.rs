@@ -27,7 +27,10 @@ impl Config {
 
         // Iterate over all environment variables
         for (key, value) in env::vars() {
-            // Look for service environment variables with the pattern SERVICE_<NAME>_UPLOAD_URL and SERVICE_<NAME>_DOWNLOAD_URL
+            // Look for service environment variables with the pattern:
+            // - SERVICE_<NAME>_UPLOAD_URL
+            // - SERVICE_<NAME>_DOWNLOAD_URL
+            // - SERVICE_<NAME>_RUNS_PER_USER
             if key.starts_with("SERVICE_") {
                 let parts: Vec<&str> = key.split('_').collect();
                 if parts.len() >= 3 {
@@ -41,17 +44,15 @@ impl Config {
                             name: service_name.to_string().to_ascii_lowercase(),
                             upload_url: String::new(),
                             download_url: String::new(),
-                            runs_per_user: u16::MIN,
+                            runs_per_user: 5, // by default consider 5 runs per user per service
                         });
 
                     // Assign the corresponding vars to the config
                     match service_vars.as_str() {
                         "UPLOAD_URL" => service.upload_url = value,
                         "DOWNLOAD_URL" => service.download_url = value,
-                        "RUNS_PER_USER" => {
-                            service.runs_per_user = value.parse::<u16>().unwrap_or(5)
-                        }
-                        _ => continue, // Skip if it's not a recognized type
+                        "RUNS_PER_USER" => service.runs_per_user = value.parse::<u16>().unwrap(),
+                        _ => continue,
                     };
                 }
             }
