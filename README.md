@@ -36,13 +36,16 @@ flowchart LR
 ## Example deployment
 
 ```bash
-docker compose -f deployment/docker_compose.yml --project-directory . up
+$ docker compose \
+  -f deployment/docker_compose.yml \
+  --project-directory .\
+  up
 ```
 
-Create a dummy run script:
+### Create a dummy run script
 
 ```bash
-cat <<EOF > run.sh
+$ cat <<EOF > run.sh
 #!/bin/bash
 # Pretend we are calculating something
 sleep $((RANDOM % 3 + 1))m
@@ -51,10 +54,10 @@ echo 'This is a downloadable file.' > output.txt
 EOF
 ```
 
-POST it
+### POST it
 
 ```bash
-curl -s -X POST http://localhost:5000/upload \
+$ curl -s -X POST http://localhost:5000/upload \
   -F "file=@run.sh" \
   -F "user_id=1" \
   -F "service=generic" | jq
@@ -73,7 +76,7 @@ It will return some information:
 }
 ```
 
-CHECK the status:
+### CHECK the status
 
 ```bash
 $ curl -I http://localhost:5000/download/1
@@ -88,10 +91,10 @@ date: Mon, 06 Oct 2025 14:10:44 GMT
 - `404`, Job not found
 - `500`, Internal server error
 
-GET it
+### GET it
 
 ```bash
-curl -I http://localhost:5000/download/16 user-limit ✭ ✱
+$ curl -I http://localhost:5000/download/16
 HTTP/1.1 200 OK
 content-type: application/octet-stream
 content-length: 380
@@ -100,6 +103,25 @@ date: Mon, 06 Oct 2025 14:13:16 GMT
 
 ```bash
 curl -o results.zip http://localhost:5000/download/1
+```
+
+### Extra: Submit a large volume to see the queue in action
+
+```bash
+for i in {1..100}; do
+  cat <<EOF > run.sh
+#!/bin/bash
+# Pretend we are calculating something
+sleep \$((RANDOM % 3 + 1))m
+# Done!
+echo 'This is a downloadable file.' > output.txt
+EOF
+  curl -s -X POST http://localhost:5000/upload \
+    -F "file=@run.sh" \
+    -F "user_id=1" \
+    -F "service=generic"
+done
+
 ```
 
 ## Implementation
