@@ -32,7 +32,7 @@ impl Config {
                 let parts: Vec<&str> = key.split('_').collect();
                 if parts.len() >= 3 {
                     let service_name = parts[1]; // Extract the service name from the variable
-                    let service_type = parts[2]; // "UPLOAD" or "DOWNLOAD"
+                    let service_vars = parts[2..].join("_"); // Join the rest for type
 
                     // Use the service name as a key to store the service info
                     let service = services
@@ -44,10 +44,10 @@ impl Config {
                             runs_per_user: u16::MIN,
                         });
 
-                    // Assign the corresponding URL based on the type
-                    match service_type {
-                        "UPLOAD" => service.upload_url = value,
-                        "DOWNLOAD" => service.download_url = value,
+                    // Assign the corresponding vars to the config
+                    match service_vars.as_str() {
+                        "UPLOAD_URL" => service.upload_url = value,
+                        "DOWNLOAD_URL" => service.download_url = value,
                         "RUNS_PER_USER" => {
                             service.runs_per_user = value.parse::<u16>().unwrap_or(5)
                         }
