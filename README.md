@@ -108,7 +108,7 @@ curl -o results.zip http://localhost:5000/download/1
 ### Extra: Submit a large volume to see the queue in action
 
 ```bash
-for i in {1..100}; do
+for i in {1..200}; do
   cat <<EOF > run.sh
 #!/bin/bash
 # Pretend we are calculating something
@@ -119,7 +119,8 @@ EOF
   curl -s -X POST http://localhost:5000/upload \
     -F "file=@run.sh" \
     -F "user_id=1" \
-    -F "service=generic"
+    -F "service=generic" > /dev/null
+  echo "Submitted job $i"
 done
 
 ```
