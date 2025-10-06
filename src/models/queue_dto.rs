@@ -96,13 +96,13 @@ impl Queue<'_> {
             let remaining_slots = (limit - submitted) as usize;
             // if submitted < limit, we can add more jobs, it has not yet reached the limit
             // if user_queue.len() < remaining_slots, we can still add to this user's queue
-            info!(
-                "User: {}, Service: {}, Current Queue Length: {}, Remaining Slots: {}",
-                user_id,
-                service,
-                user_queue.len(),
-                remaining_slots
-            );
+            // info!(
+            //     "User: {}, Service: {}, Current Queue Length: {}, Remaining Slots: {}",
+            //     user_id,
+            //     service,
+            //     user_queue.len(),
+            //     remaining_slots
+            // );
             if submitted < limit && user_queue.len() < remaining_slots {
                 let status: String = row.get("status");
                 let loc: String = row.get("loc");
