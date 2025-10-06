@@ -11,3 +11,5 @@ dev
 orchestrator-wd-data
 *html
 db.sqlite
+data
+run.sh
