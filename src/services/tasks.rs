@@ -69,7 +69,7 @@ pub async fn cleaner(pool: SqlitePool, config: Config) {
 }
 
 pub async fn sender(pool: SqlitePool, config: Config) {
-    let mut queue = Queue::new();
+    let mut queue = Queue::new(&config);
     if queue.load(Status::Queued, &pool).await.is_ok() {
         // info!("{:?}", queue.jobs.len());
         let futures = queue
@@ -106,7 +106,7 @@ pub async fn sender(pool: SqlitePool, config: Config) {
 }
 
 pub async fn getter(pool: SqlitePool, config: Config) {
-    let mut queue = Queue::new();
+    let mut queue = Queue::new(&config);
     if queue
         .list_per_status(Status::Submitted, &pool)
         .await
