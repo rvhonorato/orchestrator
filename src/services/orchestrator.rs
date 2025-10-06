@@ -128,6 +128,7 @@ mod test {
                 name: service_name,
                 upload_url: "".to_string(),
                 download_url: "".to_string(),
+                runs_per_user: 5,
             },
         );
         let config = Config {
@@ -160,6 +161,7 @@ mod test {
                 name: service_name,
                 upload_url: "".to_string(),
                 download_url: "".to_string(),
+                runs_per_user: 5,
             },
         );
         let config = Config {
@@ -189,6 +191,7 @@ mod test {
                 name: service_name,
                 upload_url: "".to_string(),
                 download_url: "".to_string(),
+                runs_per_user: 5,
             },
         );
         let config = Config {
@@ -218,6 +221,7 @@ mod test {
                 name: service_name,
                 upload_url: "".to_string(),
                 download_url: "".to_string(),
+                runs_per_user: 5,
             },
         );
         let config = Config {
@@ -244,6 +248,7 @@ mod test {
                 name: "".to_string(),
                 upload_url: "".to_string(),
                 download_url: "".to_string(),
+                runs_per_user: 5,
             },
         );
         let config = Config {

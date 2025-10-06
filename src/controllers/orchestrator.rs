@@ -237,6 +237,7 @@ mod tests {
                 name: String::from("test-service"),
                 upload_url: String::from("http://localhost/upload"),
                 download_url: String::from("http://localhost/download"),
+                runs_per_user: 5,
             },
         )]);
 

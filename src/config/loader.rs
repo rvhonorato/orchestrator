@@ -18,6 +18,7 @@ pub struct Service {
     pub name: String,
     pub upload_url: String,
     pub download_url: String,
+    pub runs_per_user: u16,
 }
 
 impl Config {
@@ -26,12 +27,15 @@ impl Config {
 
         // Iterate over all environment variables
         for (key, value) in env::vars() {
-            // Look for service environment variables with the pattern SERVICE_<NAME>_UPLOAD_URL and SERVICE_<NAME>_DOWNLOAD_URL
+            // Look for service environment variables with the pattern:
+            // - SERVICE_<NAME>_UPLOAD_URL
+            // - SERVICE_<NAME>_DOWNLOAD_URL
+            // - SERVICE_<NAME>_RUNS_PER_USER
             if key.starts_with("SERVICE_") {
                 let parts: Vec<&str> = key.split('_').collect();
                 if parts.len() >= 3 {
                     let service_name = parts[1]; // Extract the service name from the variable
-                    let service_type = parts[2]; // "UPLOAD" or "DOWNLOAD"
+                    let service_vars = parts[2..].join("_"); // Join the rest for type
 
                     // Use the service name as a key to store the service info
                     let service = services
@@ -40,14 +44,16 @@ impl Config {
                             name: service_name.to_string().to_ascii_lowercase(),
                             upload_url: String::new(),
                             download_url: String::new(),
+                            runs_per_user: 5, // by default consider 5 runs per user per service
                         });
 
-                    // Assign the corresponding URL based on the type
-                    if service_type == "UPLOAD" {
-                        service.upload_url = value;
-                    } else if service_type == "DOWNLOAD" {
-                        service.download_url = value;
-                    }
+                    // Assign the corresponding vars to the config
+                    match service_vars.as_str() {
+                        "UPLOAD_URL" => service.upload_url = value,
+                        "DOWNLOAD_URL" => service.download_url = value,
+                        "RUNS_PER_USER" => service.runs_per_user = value.parse::<u16>().unwrap(),
+                        _ => continue,
+                    };
                 }
             }
         }

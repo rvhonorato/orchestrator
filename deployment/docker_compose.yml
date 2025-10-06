@@ -13,9 +13,10 @@ services:
       # Services #==================================================#
       SERVICE_GENERIC_UPLOAD_URL: http://generic:8888/api/upload
       SERVICE_GENERIC_DOWNLOAD_URL: http://generic:8888/api/get
+      SERVICE_GENERIC_RUNS_PER_USER: 5
       #=============================================================#
     ports:
-      - "3000:3000"
+      - "5000:5000"
     volumes:
       - orchestrator-data:/opt/data
     networks:
