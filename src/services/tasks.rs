@@ -6,6 +6,7 @@ use crate::models::job_dao::Job;
 use crate::models::{queue_dao::Queue, status_dto::Status};
 use crate::services::orchestrator;
 use sqlx::SqlitePool;
+use tracing::info;
 use tracing::{debug, error};
 
 use super::jobd::Jobd;
@@ -71,7 +72,7 @@ pub async fn cleaner(pool: SqlitePool, config: Config) {
 pub async fn sender(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new(&config);
     if queue.load(&pool).await.is_ok() {
-        // info!("{:?}", queue.jobs.len());
+        // info!("There are {:?} queued jobs", queue.jobs.len());
         let futures = queue
             .jobs
             .into_iter()
@@ -84,10 +85,10 @@ pub async fn sender(pool: SqlitePool, config: Config) {
 
                     match orchestrator::send(&j, &config_clone, Jobd).await {
                         Ok(upload_id) => {
-                            // info!("submitting: {:?}", j);
+                            info!("submitting: {:?}", j);
                             j.update_status(Status::Submitted, &pool_clone).await.ok();
                             j.update_dest_id(upload_id, &pool_clone).await.ok();
-                            debug!("{:?}", j);
+                            // debug!("{:?}", j);
                         }
                         Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
                             error!("Unexpected status: {:?}", status);
@@ -112,6 +113,7 @@ pub async fn getter(pool: SqlitePool, config: Config) {
         .await
         .is_ok()
     {
+        // info!("There are {:?} submitted jobs", queue.jobs.len());
         let futures = queue
             .jobs
             .into_iter()
