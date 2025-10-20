@@ -56,3 +56,45 @@ impl Payload {
 
     // pub fn execute(&mut self) {}
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_set_filename() {
+        let mut p = Payload::new();
+        assert_eq!(p.filename, "");
+        p.set_filename("test.txt".to_string());
+        assert_eq!(p.filename, "test.txt");
+    }
+
+    #[tokio::test]
+    async fn test_set_input() {
+        let mut p = Payload::new();
+        assert_eq!(p.input.len(), 0);
+        let data = b"Hello, world!".to_vec();
+        p.set_input(data.clone());
+        assert_eq!(p.input, data);
+    }
+
+    #[tokio::test]
+    async fn test_prepare() {
+        let mut p = Payload::new();
+        p.id = 1;
+        p.set_filename("test.txt".to_string());
+        p.set_input(b"Test data".to_vec());
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let data_path = temp_dir.path().to_str().unwrap();
+
+        let result = p.prepare(data_path);
+        assert!(result.is_ok());
+
+        let expected_path = temp_dir.path().join("1").join("test.txt");
+        assert!(expected_path.exists());
+
+        let content = fs::read_to_string(expected_path).unwrap();
+        assert_eq!(content, "Test data");
+    }
+}

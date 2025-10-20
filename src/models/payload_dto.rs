@@ -46,3 +46,41 @@ impl Payload {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_add_to_db() {
+        let pool = crate::datasource::db::init_payload_db().await;
+
+        let mut payload = Payload::new();
+
+        let result = payload.add_to_db(&pool).await;
+        assert!(result.is_ok());
+        assert!(payload.id > 0);
+    }
+
+    #[tokio::test]
+    async fn test_update_status() {
+        let pool = crate::datasource::db::init_payload_db().await;
+
+        let mut payload = Payload::new();
+
+        payload
+            .add_to_db(&pool)
+            .await
+            .expect("Failed to add payload to DB");
+
+        assert_eq!(payload.status, Status::Unknown);
+
+        payload
+            .update_status(Status::Prepared, &pool)
+            .await
+            .expect("Failed to update payload status");
+
+        assert_eq!(payload.status, Status::Prepared);
+    }
+}
