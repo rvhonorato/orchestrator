@@ -12,6 +12,7 @@ pub enum Status {
     Submitted,
     Unknown,
     Cleaned,
+    Prepared,
 }
 
 impl fmt::Display for Status {
@@ -25,6 +26,7 @@ impl fmt::Display for Status {
             Status::Submitted => write!(f, "submitted"),
             Status::Unknown => write!(f, "unknown"),
             Status::Cleaned => write!(f, "cleaned"),
+            Status::Prepared => write!(f, "prepared"),
         }
     }
 }
