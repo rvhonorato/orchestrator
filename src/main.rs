@@ -8,14 +8,45 @@ mod utils;
 use crate::datasource::db::init_db;
 use crate::datasource::fs::init_fs;
 use crate::routes::router::create_routes;
+use clap::{Parser, Subcommand};
 use config::loader::Config;
 use services::tasks::{cleaner, getter, sender};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_schedule::{every, Job};
 
+#[derive(Parser, Debug)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    #[command(about = "Run orchestrator server")]
+    Server {},
+
+    #[command(about = "Run orchestrator client")]
+    Client {},
+}
+
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    match &cli.command {
+        Commands::Server {} => {
+            start_server().await?;
+        }
+        Commands::Client {} => {
+            start_client().await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn start_server() -> anyhow::Result<()> {
     // Initialize a logger
     tracing_subscriber::fmt()
         .with_target(false)
@@ -68,4 +99,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+async fn start_client() -> anyhow::Result<()> {
+    todo!("Client functionality to be implemented");
 }
