@@ -10,7 +10,7 @@ use crate::routes::router::create_routes;
 use crate::{datasource::db::init_db, routes::router::create_client_routes};
 use clap::{Parser, Subcommand};
 use config::loader::Config;
-use services::tasks::{cleaner, getter, sender};
+use services::tasks::{cleaner, getter, runner, sender};
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tokio_schedule::{every, Job};
@@ -106,7 +106,12 @@ async fn start_client(config: Config) -> anyhow::Result<()> {
     // Initialize in-memory database
     let pool = datasource::db::init_payload_db().await;
 
-    // TODO: Add runner task
+    // Create a scheduled job
+    let runner_task = every(500).millisecond().perform(|| {
+        let pool_clone = pool.clone();
+        let config_clone = config.clone();
+        async move { runner(pool_clone, config_clone).await }
+    });
 
     // Create app
     let client_app = create_client_routes(pool.clone(), config.clone());
@@ -117,7 +122,10 @@ async fn start_client(config: Config) -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(addr).await?;
 
-    axum::serve(listener, client_app.into_make_service()).await?;
+    tokio::select! {
+        _ = runner_task => {},
+        _ = axum::serve(listener, client_app.into_make_service()) => {},
+    };
 
     Ok(())
 }

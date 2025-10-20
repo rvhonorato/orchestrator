@@ -3,12 +3,14 @@ use std::time::SystemTime;
 
 use crate::config::loader::Config;
 use crate::models::job_dao::Job;
+use crate::models::queue_dao::PayloadQueue;
 use crate::models::{queue_dao::Queue, status_dto::Status};
 use crate::services::orchestrator;
 use sqlx::SqlitePool;
 use tracing::info;
 use tracing::{debug, error};
 
+use super::client::ClientError;
 use super::jobd::Jobd;
 use super::orchestrator::DownloadError;
 
@@ -142,6 +144,33 @@ pub async fn getter(pool: SqlitePool, config: Config) {
     }
 }
 
+pub async fn runner(pool: SqlitePool, config: Config) {
+    let mut queue = PayloadQueue::new(&config);
+    if queue.list_per_status(Status::Prepared, &pool).await.is_ok() {
+        let futures = queue
+            .jobs
+            .into_iter()
+            .map(|mut j| {
+                let pool_clone = pool.clone();
+                // let config_clone = config.clone();
+                tokio::spawn(async move {
+                    let result = j.execute();
+                    match result {
+                        Ok(_) => {
+                            j.update_status(Status::Completed, &pool_clone).await.ok();
+                        }
+                        Err(ClientError::ExecutionError) => {
+                            todo!("handle")
+                        }
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::join_all(futures).await;
+    }
+}
+
 #[cfg(test)]
 mod test {
 
@@ -256,4 +285,10 @@ mod test {
 
         assert_eq!(_job.status, Status::Cleaned);
     }
+
+    // TODO: Implement test for runner
+    // #[tokio::test]
+    // async fn test_runner() {
+    //     todo!()
+    // }
 }

@@ -1,4 +1,5 @@
 use crate::models::status_dto::Status;
+use crate::services::client::ClientError;
 use std::fs;
 use std::path::PathBuf;
 use utoipa::ToSchema;
@@ -26,6 +27,10 @@ impl Payload {
         }
     }
 
+    pub fn set_id(&mut self, id: u32) {
+        self.id = id;
+    }
+
     pub fn set_filename(&mut self, filename: String) {
         self.filename = filename;
     }
@@ -38,9 +43,13 @@ impl Payload {
     //     self.ouput = Some(output);
     // }
 
-    // pub fn set_status(&mut self, status: Status) {
-    //     self.status = status;
-    // }
+    pub fn set_status(&mut self, status: Status) {
+        self.status = status;
+    }
+
+    pub fn set_loc(&mut self, loc: PathBuf) {
+        self.loc = loc;
+    }
 
     pub fn prepare(&mut self, data_path: &str) -> Result<(), std::io::Error> {
         self.loc = std::path::Path::new(&data_path).join(self.id.to_string());
@@ -54,7 +63,11 @@ impl Payload {
         Ok(())
     }
 
-    // pub fn execute(&mut self) {}
+    pub fn execute(&mut self) -> Result<(), ClientError> {
+        // todo!();
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
