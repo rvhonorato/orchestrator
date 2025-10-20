@@ -1,4 +1,5 @@
 use crate::config::loader::Config;
+use crate::controllers::client::{retrieve, submit};
 use crate::controllers::orchestrator::__path_download;
 use crate::controllers::orchestrator::__path_upload;
 use crate::controllers::orchestrator::{download, upload};
@@ -52,4 +53,19 @@ pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
         )
         // .layer(DefaultBodyLimit::disable())
         .layer(DefaultBodyLimit::max(400 * 1024 * 1024)) // Set max body size to 400MB
+}
+
+pub fn create_client_routes(pool: SqlitePool, config: Config) -> Router {
+    let state = AppState { pool, config };
+    Router::new()
+        .route("/", get(ping))
+        .route("/submit", post(submit))
+        .route("/retrieve/{id}", get(retrieve))
+        .with_state(state)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::DEBUG))
+                .on_response(trace::DefaultOnResponse::new().level(Level::DEBUG)),
+        )
+        .layer(DefaultBodyLimit::disable())
 }
