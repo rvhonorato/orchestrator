@@ -102,7 +102,7 @@ mod tests {
     use crate::routes::router::AppState;
     use axum::body::to_bytes;
     use axum::body::Body;
-    use axum::{routing::post, Router};
+    use axum::{routing::get, routing::post, Router};
     use http::{header, Request, StatusCode};
     use sqlx::SqlitePool;
     use std::path::PathBuf;
@@ -156,24 +156,81 @@ mod tests {
         part
     }
 
-    async fn setup_test_router(endpoint: &str) -> Router {
+    async fn setup_submit_test_router(endpoint: &str) -> (Router, Config) {
         // Setup the route
         let data_dir = tempdir().unwrap();
         let mut config = Config::new().unwrap();
         config.data_path = data_dir.path().to_str().unwrap().to_string();
         let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
         init_db(&pool).await.unwrap(); // Initialize the database schema
-        let state = AppState { pool, config };
+        let state = AppState {
+            pool,
+            config: config.clone(),
+        };
 
-        Router::new()
-            .route(endpoint, post(submit))
-            .with_state(state)
+        (
+            Router::new()
+                .route(endpoint, post(submit))
+                .with_state(state),
+            config,
+        )
+    }
+
+    async fn setup_retrieve_test_router(endpoint: &str) -> (Router, u32, u32) {
+        // Setup the route
+        let data_dir = tempdir().unwrap();
+        let mut config = Config::new().unwrap();
+        config.data_path = data_dir.path().to_str().unwrap().to_string();
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        init_db(&pool).await.unwrap(); // Initialize the database schema
+        let state = AppState {
+            pool: pool.clone(),
+            config,
+        };
+
+        // Make a prepared payload in the database
+        let mut payload = Payload::new();
+        payload
+            .add_to_db(&state.pool)
+            .await
+            .expect("Failed to add payload to DB");
+        payload.add_input(
+            "test01.txt".to_string(),
+            b"hello this is a test file".to_vec(),
+        );
+        payload
+            .prepare(&state.config.data_path)
+            .expect("Failed to prepare payload");
+        payload
+            .update_status(Status::Completed, &pool)
+            .await
+            .expect("Failed to update status");
+        let complete_jobid = payload.id;
+        // Make a prepared payload in the database
+        let mut payload = Payload::new();
+        payload
+            .add_to_db(&state.pool)
+            .await
+            .expect("Failed to add payload to DB");
+        payload
+            .update_status(Status::Failed, &pool)
+            .await
+            .expect("Failed to update status");
+        let failed_jobid = payload.id;
+
+        (
+            Router::new()
+                .route(endpoint, get(retrieve))
+                .with_state(state),
+            complete_jobid,
+            failed_jobid,
+        )
     }
 
     #[tokio::test]
     async fn test_submit() {
         let endpoint = "/submit";
-        let test_app = setup_test_router(endpoint).await;
+        let (test_app, _) = setup_submit_test_router(endpoint).await;
 
         // Create a multipart/form-data request
         let boundary = format!("----Boundary{}", Uuid::new_v4());
@@ -219,5 +276,55 @@ mod tests {
         assert!(expected_file.exists());
         let expected_file = PathBuf::from(expected_loc).join("test.dat");
         assert!(expected_file.exists());
+    }
+
+    #[tokio::test]
+    async fn test_retrieve() {
+        let (test_app, valid_jobid, _) = setup_retrieve_test_router("/retrieve/{id}").await;
+        let endpoint = format!("/retrieve/{}", valid_jobid);
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(endpoint)
+            .body(Body::empty())
+            .unwrap();
+
+        assert_eq!(
+            test_app.oneshot(req).await.unwrap().status(),
+            StatusCode::OK
+        );
+    }
+    #[tokio::test]
+    async fn test_retrieve_nocontent() {
+        let (test_app, _, failed_jobid) = setup_retrieve_test_router("/retrieve/{id}").await;
+        let endpoint = format!("/retrieve/{}", failed_jobid);
+
+        let req = Request::builder()
+            .method("GET")
+            .uri(endpoint)
+            .body(Body::empty())
+            .unwrap();
+
+        assert_eq!(
+            test_app.oneshot(req).await.unwrap().status(),
+            StatusCode::NO_CONTENT
+        );
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_not_found() {
+        let (test_app, _, _) = setup_retrieve_test_router("/retrieve/{id}").await;
+        let endpoint = "/retrieve/999";
+
+        // Create the request
+        let req = Request::builder()
+            .method("GET")
+            .uri(endpoint)
+            .body(Body::empty())
+            .unwrap();
+
+        // Make the request
+        let response = test_app.oneshot(req).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }
