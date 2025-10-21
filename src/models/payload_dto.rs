@@ -1,6 +1,7 @@
 use crate::models::payload_dao::Payload;
 use crate::models::status_dto::Status;
 use sqlx::{Row, SqlitePool};
+use std::path::PathBuf;
 
 pub async fn create_payload_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(
@@ -24,8 +25,8 @@ impl Payload {
             .execute(pool)
             .await?;
 
-        let job_id = result.last_insert_rowid();
-        self.id = job_id as u32;
+        let id = result.last_insert_rowid();
+        self.id = id as u32;
 
         Ok(())
     }
@@ -46,8 +47,6 @@ impl Payload {
         Ok(())
     }
 
-    // NOTE: This function is not used currently but may be useful in the future
-    #[allow(dead_code)]
     pub async fn retrieve_id(&mut self, id: u32, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let row = sqlx::query("SELECT * FROM payloads WHERE id = ?")
             .bind(id)

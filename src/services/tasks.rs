@@ -165,9 +165,7 @@ pub async fn runner(pool: SqlitePool, config: Config) {
                             | ClientError::Script
                             | ClientError::NoExecScript,
                         ) => {
-                            println!("Execution error");
                             j.update_status(Status::Failed, &pool_clone).await.ok();
-                            println!("{:?}", j);
                         }
                     }
                 })
@@ -299,7 +297,9 @@ mod test {
         // Initialize pool
         let pool = crate::datasource::db::init_payload_db().await;
         // Initialize config
-        let config = Config::new().unwrap();
+        let mut config = Config::new().unwrap();
+        let tempdir = TempDir::new().unwrap();
+        config.data_path = tempdir.path().to_str().unwrap().to_string();
 
         // Add a payload
         let mut payload = Payload::new();
@@ -324,10 +324,20 @@ mod test {
             .expect("Failed to update payload status");
 
         // Run the runner
-        runner(pool.clone(), Config::new().unwrap()).await;
+        runner(pool.clone(), config).await;
 
         // Check the effects
-        let expected_output = payload.loc.join("output.txt");
+        let mut _payload = Payload::new();
+        _payload
+            .retrieve_id(payload.id, &pool)
+            .await
+            .expect("Failed to retrieve payload");
+
+        assert_eq!(_payload.status, Status::Completed);
+        let expected_output = tempdir
+            .path()
+            .join(payload.id.to_string())
+            .join("output.txt");
         assert!(expected_output.exists());
     }
 

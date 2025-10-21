@@ -3,7 +3,7 @@ use crate::{routes::router::AppState, utils::io::sanitize_filename};
 use crate::models::payload_dao::Payload;
 use crate::models::status_dto::Status;
 use axum::{
-    extract::{Json, Multipart, State},
+    extract::{Json, Multipart, Path, State},
     http::StatusCode,
 };
 
@@ -58,8 +58,43 @@ pub async fn submit(
     Ok(Json(payload))
 }
 
-pub async fn retrieve() {}
+#[utoipa::path(
+    get,
+    path = "/retrieve/{id}",
+    params(
+        ("id" = i32, Path, description = "Payload identifier")
+    ),
+    responses(
+        (status = 200, description = "File downloaded successfully", body = Vec<u8>),
+        (status = 202, description = "Job not ready"),
+        (status = 204, description = "Job failed or cleaned"),
+        (status = 404, description = "Job not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    tag = "files"
+)]
+pub async fn retrieve(
+    State(state): State<AppState>,
+    Path(id): Path<u32>,
+) -> Result<Vec<u8>, StatusCode> {
+    let mut payload = Payload::new();
 
+    payload
+        .retrieve_id(id, &state.pool)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
+
+    match payload.status {
+        Status::Completed => Ok(payload.download()),
+        Status::Failed => Err(StatusCode::NO_CONTENT),
+        Status::Cleaned => Err(StatusCode::NO_CONTENT),
+        // TODO: Handle other status here
+        _ => Err(StatusCode::ACCEPTED),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

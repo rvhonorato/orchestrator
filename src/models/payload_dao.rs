@@ -1,5 +1,5 @@
 use crate::models::status_dto::Status;
-use crate::services::client::ClientError;
+use crate::utils;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -54,6 +54,20 @@ impl Payload {
         });
 
         Ok(())
+    }
+
+    pub fn download(self) -> Vec<u8> {
+        // Get everything from the `loc` and return it
+        let result = self.loc.join("output.zip");
+
+        // Check if output.zip exists to avoid re-zipping
+        if !result.exists() {
+            // Not exists, create it by zipping the directory
+            let _ = utils::io::zip_directory(&self.loc, &result);
+        }
+
+        // Read the output.zip file and return its content
+        std::fs::read(result).expect("Unable to read output.zip")
     }
 }
 
