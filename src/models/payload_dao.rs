@@ -1,5 +1,6 @@
 use crate::models::status_dto::Status;
 use crate::services::client::ClientError;
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use utoipa::ToSchema;
@@ -7,8 +8,7 @@ use utoipa::ToSchema;
 #[derive(serde::Serialize, Debug, ToSchema)]
 pub struct Payload {
     pub id: u32,
-    input: Vec<u8>,
-    filename: String,
+    input: HashMap<String, Vec<u8>>,
     ouput: Option<Vec<u8>>,
     pub status: Status,
     #[schema(value_type = String)]
@@ -19,8 +19,7 @@ impl Payload {
     pub fn new() -> Payload {
         Payload {
             id: 0,
-            input: vec![],
-            filename: String::new(),
+            input: HashMap::new(),
             ouput: None,
             status: Status::Unknown,
             loc: PathBuf::new(),
@@ -31,17 +30,9 @@ impl Payload {
         self.id = id;
     }
 
-    pub fn set_filename(&mut self, filename: String) {
-        self.filename = filename;
+    pub fn add_input(&mut self, filename: String, input: Vec<u8>) {
+        self.input.insert(filename, input);
     }
-
-    pub fn set_input(&mut self, input: Vec<u8>) {
-        self.input = input;
-    }
-
-    // pub fn set_output(&mut self, output: Vec<u8>) {
-    //     self.ouput = Some(output);
-    // }
 
     pub fn set_status(&mut self, status: Status) {
         self.status = status;
@@ -58,7 +49,9 @@ impl Payload {
         fs::create_dir_all(&self.loc)?;
 
         // Dump data to this directory
-        fs::write(self.loc.join(&self.filename), &self.input)?;
+        self.input.iter_mut().for_each(|(filename, data)| {
+            fs::write(self.loc.join(filename), data).expect("Unable to write file")
+        });
 
         Ok(())
     }
@@ -75,28 +68,21 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn test_set_filename() {
-        let mut p = Payload::new();
-        assert_eq!(p.filename, "");
-        p.set_filename("test.txt".to_string());
-        assert_eq!(p.filename, "test.txt");
-    }
-
-    #[tokio::test]
-    async fn test_set_input() {
+    async fn test_add_input() {
         let mut p = Payload::new();
         assert_eq!(p.input.len(), 0);
         let data = b"Hello, world!".to_vec();
-        p.set_input(data.clone());
-        assert_eq!(p.input, data);
+        let filename = "filename.txt".to_string();
+        let expected_map = HashMap::from([(filename.clone(), data.clone())]);
+        p.add_input(filename, data.clone());
+        assert_eq!(p.input, expected_map);
     }
 
     #[tokio::test]
     async fn test_prepare() {
         let mut p = Payload::new();
         p.id = 1;
-        p.set_filename("test.txt".to_string());
-        p.set_input(b"Test data".to_vec());
+        p.add_input("test.txt".to_string(), b"Test data".to_vec());
 
         let temp_dir = tempfile::tempdir().unwrap();
         let data_path = temp_dir.path().to_str().unwrap();

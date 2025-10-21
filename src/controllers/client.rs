@@ -31,12 +31,9 @@ pub async fn submit(
     while let Some(field) = multipart.next_field().await.unwrap() {
         if let Some(filename) = field.file_name() {
             let clean_filename = sanitize_filename(filename);
-            payload.set_filename(clean_filename);
-
             let data = field.bytes().await.unwrap();
-            payload.set_input(data.to_vec());
 
-            break; // We only expect one file
+            payload.add_input(clean_filename, data.to_vec());
         }
     }
     tracing::info!("Received payload submission");
@@ -95,6 +92,17 @@ mod tests {
     }
 
     // Helper functions to create multipart form data
+    fn form_text_file(boundary: &str, name: &str, filename: &str, content: &str) -> Vec<u8> {
+        let mut part = format!(
+            "--{boundary}\r\n\
+                Content-Disposition: form-data; name=\"{name}\"; filename=\"{filename}\"\r\n\
+                Content-Type: text/plain\r\n\r\n"
+        )
+        .into_bytes();
+        part.extend_from_slice(content.as_bytes());
+        part.extend_from_slice(b"\r\n");
+        part
+    }
     fn form_file(
         boundary: &str,
         name: &str,
@@ -135,6 +143,12 @@ mod tests {
         // Create a multipart/form-data request
         let boundary = format!("----Boundary{}", Uuid::new_v4());
         let mut body = Vec::new();
+        body.extend(form_text_file(
+            &boundary,
+            "file",
+            "test01.txt",
+            "hello this is a test file",
+        ));
         body.extend(form_file(
             &boundary,
             "file",
@@ -166,6 +180,8 @@ mod tests {
 
         // Check if the file was saved correctly
         let expected_loc = json["loc"].as_str().unwrap();
+        let expected_file = PathBuf::from(expected_loc).join("test01.txt");
+        assert!(expected_file.exists());
         let expected_file = PathBuf::from(expected_loc).join("test.dat");
         assert!(expected_file.exists());
     }
