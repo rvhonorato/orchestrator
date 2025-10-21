@@ -47,6 +47,7 @@ impl Payload {
     }
 
     // NOTE: This function is not used currently but may be useful in the future
+    #[allow(dead_code)]
     pub async fn retrieve_id(&mut self, id: u32, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let row = sqlx::query("SELECT * FROM payloads WHERE id = ?")
             .bind(id)
@@ -98,5 +99,28 @@ mod test {
             .expect("Failed to update payload status");
 
         assert_eq!(payload.status, Status::Prepared);
+    }
+
+    #[tokio::test]
+    async fn test_retrieve_id() {
+        let pool = crate::datasource::db::init_payload_db().await;
+
+        let mut payload = Payload::new();
+
+        payload
+            .add_to_db(&pool)
+            .await
+            .expect("Failed to add payload to DB");
+
+        let id = payload.id;
+
+        let mut retrieved_payload = Payload::new();
+        retrieved_payload
+            .retrieve_id(id, &pool)
+            .await
+            .expect("Failed to retrieve payload by ID");
+
+        assert_eq!(retrieved_payload.id, id);
+        assert_eq!(retrieved_payload.status, Status::Unknown);
     }
 }
