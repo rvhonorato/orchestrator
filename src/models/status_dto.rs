@@ -19,6 +19,7 @@ impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Status::Pending => write!(f, "pending"),
+            Status::Prepared => write!(f, "prepared"),
             Status::Processing => write!(f, "processing"),
             Status::Completed => write!(f, "completed"),
             Status::Failed => write!(f, "failed"),
@@ -26,7 +27,6 @@ impl fmt::Display for Status {
             Status::Submitted => write!(f, "submitted"),
             Status::Unknown => write!(f, "unknown"),
             Status::Cleaned => write!(f, "cleaned"),
-            Status::Prepared => write!(f, "prepared"),
         }
     }
 }

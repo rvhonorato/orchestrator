@@ -55,12 +55,6 @@ impl Payload {
 
         Ok(())
     }
-
-    pub fn execute(&mut self) -> Result<(), ClientError> {
-        // todo!();
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
