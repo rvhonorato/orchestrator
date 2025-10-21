@@ -31,11 +31,9 @@ pub fn execute_payload(payload: &Payload) -> Result<(), ClientError> {
         .status()
         .map_err(|_| ClientError::Execution)?;
 
-    println!("{:?}", exit_status);
     if !exit_status.success() {
         return Err(ClientError::Script);
     }
-    println!("BBB");
 
     Ok(())
 }
