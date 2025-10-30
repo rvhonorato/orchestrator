@@ -1,8 +1,10 @@
 services:
-  orchestrator:
+  server:
     build:
-      dockerfile: deployment/orchestrator.Dockerfile
-    container_name: orchestrator
+      dockerfile: Dockerfile
+      target: prod
+    container_name: server
+    command: /usr/bin/orchestrator server
     environment:
       # Location inside the container where the data will be saved
       DATA_PATH: /opt/data
@@ -11,9 +13,9 @@ services:
       # Max age of folders (in seconds)
       MAX_AGE: 172800
       # Services #==================================================#
-      SERVICE_GENERIC_UPLOAD_URL: http://generic:8888/api/upload
-      SERVICE_GENERIC_DOWNLOAD_URL: http://generic:8888/api/get
-      SERVICE_GENERIC_RUNS_PER_USER: 5
+      SERVICE_EXAMPLE_UPLOAD_URL: http://example:9000/submit
+      SERVICE_EXAMPLE_DOWNLOAD_URL: http://example:9000/retrieve
+      SERVICE_EXAMPLE_RUNS_PER_USER: 5
       #=============================================================#
     ports:
       - "5000:5000"
@@ -23,16 +25,14 @@ services:
       - api
       - public
 
-  generic:
+  example:
     build:
-      dockerfile: deployment/generic.Dockerfile
-    container_name: generic
-    command: /bin/jobd
-    environment:
-      PORT: 8888
-      DEBUG: true
+      dockerfile: Dockerfile
+      target: example
+    command: /usr/bin/orchestrator client
+    container_name: example
     ports:
-      - 8888:8888
+      - "9000:9000"
     networks:
       - api
 

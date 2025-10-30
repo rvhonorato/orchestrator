@@ -136,7 +136,7 @@ pub async fn getter(pool: SqlitePool, config: Config) {
                     }
                     Err(e) => {
                         error!("Failed to download job {}: {:?}", j.id, e);
-                        // Optionally: increment retry counter
+                        j.update_status(Status::Unknown, &pool).await.ok();
                     }
                 }
             }
