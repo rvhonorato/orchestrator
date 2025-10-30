@@ -5,14 +5,14 @@ use crate::config::loader::Config;
 use crate::models::job_dao::Job;
 use crate::models::queue_dao::PayloadQueue;
 use crate::models::{queue_dao::Queue, status_dto::Status};
-use crate::services::client::execute_payload;
+use crate::services::client::{execute_payload, Client};
 use crate::services::orchestrator;
+use futures::stream::{self, StreamExt};
 use sqlx::SqlitePool;
 use tracing::info;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use super::client::ClientError;
-use super::jobd::Jobd;
 use super::orchestrator::DownloadError;
 
 pub async fn cleaner(pool: SqlitePool, config: Config) {
@@ -86,15 +86,12 @@ pub async fn sender(pool: SqlitePool, config: Config) {
                 tokio::spawn(async move {
                     j.update_status(Status::Processing, &pool_clone).await.ok();
 
-                    match orchestrator::send(&j, &config_clone, Jobd).await {
+                    match orchestrator::send(&j, &config_clone, Client).await {
                         Ok(upload_id) => {
                             info!("submitting: {:?}", j);
                             j.update_status(Status::Submitted, &pool_clone).await.ok();
                             j.update_dest_id(upload_id, &pool_clone).await.ok();
-                            // debug!("{:?}", j);
-                        }
-                        Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
-                            error!("Unexpected status: {:?}", status);
+                            debug!("{:?}", j);
                         }
                         Err(e) => {
                             error!("Upload error: {:?}", e);
@@ -111,40 +108,49 @@ pub async fn sender(pool: SqlitePool, config: Config) {
 
 pub async fn getter(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new(&config);
-    if queue
-        .list_per_status(Status::Submitted, &pool)
-        .await
-        .is_ok()
-    {
-        // info!("There are {:?} submitted jobs", queue.jobs.len());
-        let futures = queue
-            .jobs
-            .into_iter()
-            .map(|mut j| {
-                let pool_clone = pool.clone();
-                let config_clone = config.clone();
-                tokio::spawn(async move {
-                    let result = orchestrator::retrieve(&j, &config_clone, Jobd).await;
-                    match result {
-                        Ok(_) => {
-                            j.update_status(Status::Completed, &pool_clone).await.ok();
-                        }
-                        Err(DownloadError::NotReady) => {}
-                        Err(DownloadError::NotFound) => {
-                            j.update_status(Status::Unknown, &pool_clone).await.ok();
-                        }
-                        Err(e) => {
-                            error!("{:?}", e);
+
+    if let Err(e) = queue.list_per_status(Status::Submitted, &pool).await {
+        error!("Failed to fetch submitted jobs: {:?}", e);
+        return;
+    }
+
+    let results: Vec<_> = stream::iter(queue.jobs)
+        .map(|mut j| {
+            let pool = pool.clone();
+            let config = config.clone();
+            async move {
+                match orchestrator::retrieve(&j, &config, Client).await {
+                    Ok(_) => {
+                        if let Err(e) = j.update_status(Status::Completed, &pool).await {
+                            error!("Failed to update job {} to Completed: {:?}", j.id, e);
+                        } else {
+                            info!("Job {} completed successfully", j.id);
                         }
                     }
-                })
-            })
-            .collect::<Vec<_>>();
+                    Err(DownloadError::JobNotReady) => {
+                        debug!("Job {} not ready yet", j.id);
+                    }
+                    Err(DownloadError::JobNotFound) => {
+                        warn!("Job {} not found on server", j.id);
+                        j.update_status(Status::Unknown, &pool).await.ok();
+                    }
+                    Err(e) => {
+                        error!("Failed to download job {}: {:?}", j.id, e);
+                        // Optionally: increment retry counter
+                    }
+                }
+            }
+        })
+        // NOTE: This will limit how many "retrieves" we are doing at a single time, this might
+        // be relevant to avoid overloading the system
+        .buffer_unordered(10)
+        .collect()
+        .await;
 
-        futures::future::join_all(futures).await;
-    }
+    info!("Processed {} jobs", results.len());
 }
 
+// Client side
 pub async fn runner(pool: SqlitePool, config: Config) {
     let mut queue = PayloadQueue::new(&config);
     if queue.list_per_status(Status::Prepared, &pool).await.is_ok() {
