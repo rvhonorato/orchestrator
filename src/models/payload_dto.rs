@@ -1,7 +1,6 @@
 use crate::models::payload_dao::Payload;
 use crate::models::status_dto::Status;
 use sqlx::{Row, SqlitePool};
-use std::path::PathBuf;
 
 pub async fn create_payload_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(

@@ -8,7 +8,7 @@ pub struct Queue<'a> {
 }
 
 impl Queue<'_> {
-    pub fn new(config: &Config) -> Queue {
+    pub fn new(config: &Config) -> Queue<'_> {
         Queue {
             jobs: Vec::new(),
             config,
@@ -23,7 +23,7 @@ pub struct PayloadQueue<'a> {
 }
 
 impl PayloadQueue<'_> {
-    pub fn new(config: &Config) -> PayloadQueue {
+    pub fn new(config: &Config) -> PayloadQueue<'_> {
         PayloadQueue {
             jobs: Vec::new(),
             config,
