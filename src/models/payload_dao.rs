@@ -56,7 +56,7 @@ impl Payload {
         Ok(())
     }
 
-    pub fn download(self) -> Vec<u8> {
+    pub fn zip_directory(self) -> Vec<u8> {
         // Get everything from the `loc` and return it
         let result = self.loc.join("output.zip");
 

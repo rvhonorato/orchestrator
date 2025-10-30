@@ -88,7 +88,7 @@ pub async fn retrieve(
         })?;
 
     match payload.status {
-        Status::Completed => Ok(payload.download()),
+        Status::Completed => Ok(payload.zip_directory()),
         Status::Failed => Err(StatusCode::NO_CONTENT),
         Status::Cleaned => Err(StatusCode::NO_CONTENT),
         // TODO: Handle other status here
