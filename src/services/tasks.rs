@@ -114,7 +114,7 @@ pub async fn getter(pool: SqlitePool, config: Config) {
         return;
     }
 
-    let results: Vec<_> = stream::iter(queue.jobs)
+    let _: Vec<_> = stream::iter(queue.jobs)
         .map(|mut j| {
             let pool = pool.clone();
             let config = config.clone();
@@ -146,8 +146,6 @@ pub async fn getter(pool: SqlitePool, config: Config) {
         .buffer_unordered(10)
         .collect()
         .await;
-
-    info!("Processed {} jobs", results.len());
 }
 
 // Client side

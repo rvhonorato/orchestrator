@@ -21,13 +21,14 @@ impl Queue<'_> {
             .map(|row| {
                 let status: String = row.get("status");
                 let loc: String = row.get("loc");
+                let dest_id: u32 = row.get("dest_id");
                 Job {
                     id: row.get("id"),
                     user_id: row.get("user_id"),
                     service: row.get("service"),
                     status: Status::from_string(&status),
                     loc: PathBuf::from(loc),
-                    dest_id: row.get("dest_id"),
+                    dest_id,
                 }
             })
             .collect();

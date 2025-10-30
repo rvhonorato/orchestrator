@@ -36,7 +36,6 @@ pub async fn submit(
             payload.add_input(clean_filename, data.to_vec());
         }
     }
-    tracing::info!("Received payload submission");
 
     payload
         .add_to_db(&state.pool)

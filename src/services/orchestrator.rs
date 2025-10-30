@@ -67,7 +67,7 @@ pub enum DownloadError {
     InvalidService,
 }
 
-pub async fn send<T>(job: &Job, config: &Config, target: T) -> Result<String, UploadError>
+pub async fn send<T>(job: &Job, config: &Config, target: T) -> Result<u32, UploadError>
 where
     T: Endpoint,
 {
@@ -98,7 +98,7 @@ where
 
 // These are traits that all Desinations need to have
 pub trait Endpoint {
-    async fn upload(&self, j: &Job, url: &str) -> Result<String, UploadError>;
+    async fn upload(&self, j: &Job, url: &str) -> Result<u32, UploadError>;
     // async fn status(&self, j: &Job) -> Result<reqwest::Response, reqwest::Error>;
     async fn download(&self, j: &Job, url: &str) -> Result<(), DownloadError>;
 }
@@ -121,8 +121,8 @@ mod test {
     struct ErrMockDestination;
 
     impl Endpoint for OkMockDestination {
-        async fn upload(&self, _j: &Job, _u: &str) -> Result<String, UploadError> {
-            Ok("".to_string())
+        async fn upload(&self, _j: &Job, _u: &str) -> Result<u32, UploadError> {
+            Ok(0)
         }
         async fn download(&self, _j: &Job, _u: &str) -> Result<(), DownloadError> {
             Ok(())
@@ -130,7 +130,7 @@ mod test {
     }
 
     impl Endpoint for ErrMockDestination {
-        async fn upload(&self, _j: &Job, _u: &str) -> Result<String, UploadError> {
+        async fn upload(&self, _j: &Job, _u: &str) -> Result<u32, UploadError> {
             Err(UploadError::InvalidService)
         }
         async fn download(&self, _j: &Job, _u: &str) -> Result<(), DownloadError> {

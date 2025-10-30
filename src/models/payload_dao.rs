@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 use utoipa::ToSchema;
 
-#[derive(serde::Serialize, Debug, ToSchema)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, ToSchema)]
 pub struct Payload {
     pub id: u32,
     input: HashMap<String, Vec<u8>>,

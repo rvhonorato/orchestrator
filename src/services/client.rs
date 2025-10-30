@@ -27,7 +27,7 @@ pub struct Client;
 
 // Server side
 impl Endpoint for Client {
-    async fn upload(&self, job: &Job, url: &str) -> Result<String, UploadError> {
+    async fn upload(&self, job: &Job, url: &str) -> Result<u32, UploadError> {
         // Create multipart form
         let mut form = Form::new();
 
@@ -92,11 +92,16 @@ impl Endpoint for Client {
             .map_err(UploadError::ResponseReadFailed)?;
 
         if response.status().is_success() {
+            // The client will return the `Payload`, deserialize it here (:
             let body = response
                 .text()
                 .await
                 .map_err(UploadError::ResponseReadFailed)?;
-            Ok(body)
+
+            let payload: Payload =
+                serde_json::from_str(&body).map_err(UploadError::DeserializationFailed)?;
+
+            Ok(payload.id)
         } else {
             let status = response.status();
             let body = response
@@ -109,8 +114,9 @@ impl Endpoint for Client {
 
     async fn download(&self, j: &Job, url: &str) -> Result<(), DownloadError> {
         let client = reqwest::Client::new();
+        // Append the job id to the url
         let response = client
-            .get(url)
+            .get(format!("{url}/{0}", j.dest_id))
             .send()
             .await
             .map_err(DownloadError::RequestFailed)?;
