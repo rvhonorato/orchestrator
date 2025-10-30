@@ -1,5 +1,4 @@
 use axum::http::StatusCode;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs::File;
 use std::io;
 use std::io::{Read, Write};
@@ -8,32 +7,6 @@ use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 use zip::ZipWriter;
-
-pub fn stream_file_to_base64(path: &str) -> io::Result<String> {
-    let mut file = std::fs::File::open(path)?;
-    let mut buffer = [0; 3072]; // read in chunks of 3072
-    let mut base64 = String::new();
-    loop {
-        let bytes_read = file.read(&mut buffer)?;
-        if bytes_read == 0 {
-            break;
-        }
-
-        base64.push_str(&STANDARD.encode(&buffer[..bytes_read]));
-    }
-    Ok(base64)
-}
-
-pub fn base64_to_file(base64_content: &str, output_path: PathBuf) -> io::Result<()> {
-    let decoded_bytes = STANDARD
-        .decode(base64_content)
-        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "Invalid base64"))?;
-
-    std::fs::create_dir_all(output_path.parent().unwrap())?;
-    std::fs::write(&output_path, &decoded_bytes)?;
-
-    Ok(())
-}
 
 /// Sanitize filename to prevent path traversal attacks
 pub fn sanitize_filename(filename: &str) -> String {
@@ -151,67 +124,4 @@ pub fn zip_directory(src_dir: &PathBuf, dst_file: &PathBuf) -> zip::result::ZipR
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
-
-    #[test]
-    fn test_stream_file_to_base64() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file.write_all(b"hello");
-        let temp_path = temp_file.path().to_str().unwrap();
-        let result = stream_file_to_base64(temp_path).unwrap();
-        assert_eq!(result, "aGVsbG8=")
-    }
-
-    #[test]
-    fn test_base64_to_file_success() {
-        // Create a temporary directory for the test
-        let temp_file = NamedTempFile::new().unwrap();
-        let file_path = temp_file.path().to_path_buf();
-
-        let base64_content = "SGVsbG8gV29ybGQh"; // "Hello World!" in base64
-
-        let result = base64_to_file(base64_content, file_path.clone());
-
-        assert!(result.is_ok());
-
-        let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
-        assert_eq!(file_content, "Hello World!");
-    }
-
-    #[test]
-    fn test_base64_to_file_invalid_base64() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let file_path = temp_file.path().to_path_buf();
-
-        let base64_content = "InvalidBase64!!";
-
-        let result = base64_to_file(base64_content, file_path);
-
-        assert!(result.is_err());
-
-        if let Err(e) = result {
-            assert_eq!(e.kind(), io::ErrorKind::InvalidData);
-        }
-    }
-
-    #[test]
-    fn test_base64_to_file_directory_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let file_path = temp_file.path().to_path_buf();
-
-        let base64_content = "SGVsbG8gV29ybGQh"; // "Hello World!" in base64
-
-        let result = base64_to_file(base64_content, file_path.clone());
-
-        assert!(result.is_ok());
-
-        assert!(file_path.parent().unwrap().exists());
-
-        let file_content = fs::read_to_string(&file_path).expect("Failed to read file");
-        assert_eq!(file_content, "Hello World!");
-    }
-}
+mod tests {}
