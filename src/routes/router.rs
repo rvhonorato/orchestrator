@@ -1,8 +1,11 @@
 use crate::config::loader::Config;
+use crate::controllers::health::__path_health;
+use crate::controllers::health::health;
 use crate::controllers::orchestrator::__path_download;
 use crate::controllers::orchestrator::__path_upload;
 use crate::controllers::orchestrator::{download, upload};
 use crate::controllers::ping::ping;
+use crate::models::health_dto::Health;
 use crate::models::job_dao::Job;
 use axum::extract::DefaultBodyLimit;
 use axum::{
@@ -26,13 +29,15 @@ pub struct AppState {
 #[openapi(
     paths(
         upload,
-        download
+        download,
+        health
     ),
     components(
-        schemas(Job)
+        schemas(Job, Health)
     ),
     tags(
-        (name = "files", description = "File management endpoints")
+        (name = "files", description = "File management endpoints"),
+        (name = "health", description = "Health check endpoints")
     )
 )]
 struct ApiDoc;
@@ -41,6 +46,7 @@ pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
     let state = AppState { pool, config };
     Router::new()
         .route("/", get(ping))
+        .route("/health", get(health))
         .route("/upload", post(upload))
         .route("/download/{id}", get(download))
         .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", ApiDoc::openapi()))
