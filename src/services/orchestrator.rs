@@ -8,8 +8,6 @@ use tracing::info;
 pub enum UploadError {
     #[error("Invalid service")]
     InvalidService,
-    #[error("Invalid path")]
-    InvalidPath,
     #[error("Failed to encode file: {0}")]
     EncodingFailed(#[from] std::io::Error),
     #[error("Request failed: {0}")]
@@ -18,29 +16,55 @@ pub enum UploadError {
     ResponseReadFailed(reqwest::Error),
     #[error("Failed to deserialize response: {0}")]
     DeserializationFailed(#[from] serde_json::Error),
-    #[error("Unexpected status code: {0}")]
-    UnexpectedStatus(StatusCode),
-    #[error("Empty directory")]
-    EmptyDirectory,
+    #[error("Server returned error status {status}: {body}")]
+    UnexpectedStatus { status: StatusCode, body: String },
+    #[error("Cannot read file '{path}': {source}")]
+    FileRead {
+        path: String,
+        #[source]
+        source: tokio::io::Error,
+    },
 }
+
 #[derive(Debug, thiserror::Error)]
 pub enum DownloadError {
-    #[error("Invalid service")]
-    InvalidService,
-    #[error("Not found")]
-    NotFound,
-    #[error("Invalid path")]
-    InvalidPath,
     #[error("Request failed: {0}")]
     RequestFailed(#[from] reqwest::Error),
-    #[error("Not finished")]
-    NotReady,
-    #[error("Failed to deserialize response: {0}")]
-    DeserializationFailed(#[from] serde_json::Error),
+
     #[error("Failed to read response: {0}")]
     ResponseReadFailed(reqwest::Error),
-    #[error("Unexpected status code: {0}")]
-    UnexpectedStatus(StatusCode),
+
+    #[error("Job not found)")]
+    JobNotFound,
+
+    #[error("Job not ready yet")]
+    JobNotReady,
+
+    #[error("Job failed or was cleaned")]
+    JobFailedOrCleaned,
+
+    #[error("Server returned error status {status}: {body}")]
+    UnexpectedStatus { status: StatusCode, body: String },
+
+    #[error("Failed to create file '{path}': {source}")]
+    FileCreate {
+        path: String,
+        #[source]
+        source: tokio::io::Error,
+    },
+
+    #[error("Failed to write to file '{path}': {source}")]
+    FileWrite {
+        path: String,
+        #[source]
+        source: tokio::io::Error,
+    },
+
+    #[error("Not found")]
+    NotFound,
+
+    #[error("Invalid service")]
+    InvalidService,
 }
 
 pub async fn send<T>(job: &Job, config: &Config, target: T) -> Result<String, UploadError>
