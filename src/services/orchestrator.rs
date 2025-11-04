@@ -34,7 +34,7 @@ pub enum DownloadError {
     #[error("Failed to read response: {0}")]
     ResponseReadFailed(reqwest::Error),
 
-    #[error("Job not found)")]
+    #[error("Job not found")]
     JobNotFound,
 
     #[error("Job not ready yet")]
