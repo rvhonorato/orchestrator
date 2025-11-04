@@ -43,7 +43,7 @@ impl Payload {
     pub fn prepare(&mut self, data_path: &str) -> Result<(), std::io::Error> {
         self.loc = std::path::Path::new(&data_path).join(self.id.to_string());
 
-        // Create directory dor this payload
+        // Create directory for this payload
         fs::create_dir_all(&self.loc)?;
 
         // Dump data to this directory
