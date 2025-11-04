@@ -22,7 +22,10 @@ pub async fn create_payload_table(pool: &SqlitePool) -> Result<(), sqlx::Error> 
 impl Payload {
     pub async fn add_to_db(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
         let loc_str = self.loc.to_str().ok_or_else(|| {
-            sqlx::Error::Protocol("Invalid loc path: cannot convert to string".to_string())
+            sqlx::Error::Protocol(
+                "Invalid loc path: contains invalid UTF-8 and cannot be converted to string"
+                    .to_string(),
+            )
         })?;
 
         let result = sqlx::query("INSERT INTO payloads (status, loc) VALUES (?, ?)")
