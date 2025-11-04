@@ -254,9 +254,8 @@ mod test {
         _job.retrieve_id(id, &pool).await.unwrap();
 
         // Since nothing is configured, it will fail
-        //  the only thing we need to test here is if
-        //  the status is not being updated
-        assert_eq!(_job.status, Status::Submitted);
+        //  and set the job as Unknown
+        assert_eq!(_job.status, Status::Unknown);
 
         // TODO: Add mock the `retrieve` function to test the match arm
     }
