@@ -9,7 +9,6 @@ use utoipa::ToSchema;
 pub struct Payload {
     pub id: u32,
     input: HashMap<String, Vec<u8>>,
-    ouput: Option<Vec<u8>>,
     pub status: Status,
     #[schema(value_type = String)]
     pub loc: PathBuf,
@@ -20,7 +19,6 @@ impl Payload {
         Payload {
             id: 0,
             input: HashMap::new(),
-            ouput: None,
             status: Status::Unknown,
             loc: PathBuf::new(),
         }
