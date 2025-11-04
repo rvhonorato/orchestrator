@@ -13,7 +13,7 @@ pub async fn create_jobs_table(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             service TEXT NOT NULL,
             status TEXT NOT NULL,
             loc TEXT NOT NULL,
-            dest_id TEXT,
+            dest_id INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     "#,
@@ -58,11 +58,11 @@ impl Job {
 
     pub async fn update_dest_id(
         &mut self,
-        dest_id: String,
+        dest_id: u32,
         pool: &SqlitePool,
     ) -> Result<(), sqlx::Error> {
         let _result = sqlx::query("UPDATE jobs SET dest_id = ? WHERE id = ?")
-            .bind(&dest_id)
+            .bind(dest_id)
             .bind(self.id)
             .execute(pool)
             .await?;

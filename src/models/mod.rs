@@ -1,6 +1,8 @@
 pub mod health_dto;
 pub mod job_dao;
 pub mod job_dto;
+pub mod payload_dao;
+pub mod payload_dto;
 pub mod ping_dto;
 pub mod queue_dao;
 pub mod queue_dto;

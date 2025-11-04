@@ -1,4 +1,5 @@
 use crate::config::loader::Config;
+use crate::controllers::client::{retrieve, submit};
 use crate::controllers::health::__path_health;
 use crate::controllers::health::health;
 use crate::controllers::orchestrator::__path_download;
@@ -13,8 +14,9 @@ use axum::{
     Router,
 };
 use sqlx::SqlitePool;
-use tower_http::trace;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{
+    DefaultMakeSpan, DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer,
+};
 use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -53,9 +55,43 @@ pub fn create_routes(pool: SqlitePool, config: Config) -> Router {
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()
-                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
-                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
+                .make_span_with(
+                    DefaultMakeSpan::new()
+                        .level(Level::INFO)
+                        .include_headers(true), // Log request headers
+                )
+                .on_request(DefaultOnRequest::new().level(Level::INFO))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(Level::INFO)
+                        .include_headers(true), // Log response headers
+                )
+                .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
         )
-        // .layer(DefaultBodyLimit::disable())
         .layer(DefaultBodyLimit::max(400 * 1024 * 1024)) // Set max body size to 400MB
+}
+
+pub fn create_client_routes(pool: SqlitePool, config: Config) -> Router {
+    let state = AppState { pool, config };
+    Router::new()
+        .route("/", get(ping))
+        .route("/submit", post(submit))
+        .route("/retrieve/{id}", get(retrieve))
+        .with_state(state)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(
+                    DefaultMakeSpan::new()
+                        .level(Level::INFO)
+                        .include_headers(true), // Log request headers
+                )
+                .on_request(DefaultOnRequest::new().level(Level::INFO))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(Level::INFO)
+                        .include_headers(true), // Log response headers
+                )
+                .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
+        )
+        .layer(DefaultBodyLimit::disable())
 }

@@ -1,7 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{queue_dao::Queue, status_dto::Status};
-use crate::models::job_dao::Job;
+use crate::models::{job_dao::Job, payload_dao::Payload, queue_dao::PayloadQueue};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 
@@ -21,13 +21,14 @@ impl Queue<'_> {
             .map(|row| {
                 let status: String = row.get("status");
                 let loc: String = row.get("loc");
+                let dest_id: u32 = row.get("dest_id");
                 Job {
                     id: row.get("id"),
                     user_id: row.get("user_id"),
                     service: row.get("service"),
                     status: Status::from_string(&status),
                     loc: PathBuf::from(loc),
-                    dest_id: row.get("dest_id"),
+                    dest_id,
                 }
             })
             .collect();
@@ -123,11 +124,43 @@ impl Queue<'_> {
     }
 }
 
+impl PayloadQueue<'_> {
+    pub async fn list_per_status(
+        &mut self,
+        status: Status,
+        pool: &SqlitePool,
+    ) -> Result<(), sqlx::Error> {
+        let rows = sqlx::query("SELECT * FROM payloads WHERE status = ?")
+            .bind(status.to_string())
+            .fetch_all(pool)
+            .await?;
+
+        let jobs: Vec<Payload> = rows
+            .into_iter()
+            .map(|row| {
+                let status: String = row.get("status");
+                let id: u32 = row.get("id");
+                let loc = Path::new(&self.config.data_path).join(id.to_string());
+
+                let mut payload = Payload::new();
+                payload.set_id(id);
+                payload.set_status(Status::from_string(&status));
+                payload.set_loc(loc);
+
+                payload
+            })
+            .collect();
+        self.jobs = jobs;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::loader::{Config, Service};
     use crate::models::job_dto::create_jobs_table;
+    use crate::models::payload_dto::create_payload_table;
 
     #[tokio::test]
     async fn test_load_limits_jobs_per_user_per_service() {
@@ -261,5 +294,44 @@ mod tests {
         let jobs_for_user3: Vec<&Job> = queue.jobs.iter().filter(|j| j.user_id == 3).collect();
         let expected_user3 = 8; // 3 (A) + 4 (B) + 1 (C)
         assert_eq!(jobs_for_user3.len(), expected_user3);
+    }
+
+    #[tokio::test]
+    async fn test_list_per_status_payloads() {
+        // Setup in-memory SQLite database
+        let pool = SqlitePool::connect(":memory:")
+            .await
+            .unwrap_or_else(|e| panic!("Database connection failed: {e}"));
+        let mut config = Config::new().unwrap();
+        config.data_path = "./data".to_string();
+
+        // Create payloads table
+        let _ = create_payload_table(&pool).await;
+
+        // Insert payloads with different statuses
+        sqlx::query("INSERT INTO payloads (status) VALUES ('prepared')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO payloads (status) VALUES ('processing')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO payloads (status) VALUES ('prepared')")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Load queued payloads
+        let mut payload_queue = PayloadQueue::new(&config);
+        payload_queue
+            .list_per_status(Status::Prepared, &pool)
+            .await
+            .unwrap();
+
+        // There should be 2 queued payloads
+        let queued_count = payload_queue.jobs.len();
+        let expected_count = 2;
+        assert_eq!(queued_count, expected_count);
     }
 }

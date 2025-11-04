@@ -1,3 +1,3 @@
-pub mod jobd;
+pub mod client;
 pub mod orchestrator;
 pub mod tasks;

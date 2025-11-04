@@ -33,34 +33,14 @@ flowchart LR
     E -->|slurml| H[local HPC]
 ```
 
-## Example deployment
+## Example
 
 ```bash
-$ docker compose \
-  -f deployment/docker_compose.yml \
-  --project-directory .\
-  up -d
-```
-
-### Create a dummy run script
-
-```bash
-$ cat <<EOF > run.sh
-#!/bin/bash
-# Pretend we are calculating something
-sleep $((RANDOM % 3 + 1))m
-# Done!
-echo 'This is a downloadable file.' > output.txt
-EOF
-```
-
-### POST it
-
-```bash
-$ curl -s -X POST http://localhost:5000/upload \
-  -F "file=@run.sh" \
+curl -s -X POST http://localhost:5000/upload \
+  -F "file=@example/run.sh" \
+  -F "file=@example/2oob.pdb" \
   -F "user_id=1" \
-  -F "service=generic" | jq
+  -F "service=example" | jq
 ```
 
 It will return some information:
@@ -79,10 +59,7 @@ It will return some information:
 ### CHECK the status
 
 ```bash
-$ curl -I http://localhost:5000/download/1
-HTTP/1.1 202 Accepted
-content-length: 0
-date: Mon, 06 Oct 2025 14:10:44 GMT
+curl -I http://localhost:5000/download/1
 ```
 
 - `200`, File downloaded successfully

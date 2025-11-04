@@ -3,13 +3,16 @@ use std::time::SystemTime;
 
 use crate::config::loader::Config;
 use crate::models::job_dao::Job;
+use crate::models::queue_dao::PayloadQueue;
 use crate::models::{queue_dao::Queue, status_dto::Status};
+use crate::services::client::{execute_payload, Client};
 use crate::services::orchestrator;
+use futures::stream::{self, StreamExt};
 use sqlx::SqlitePool;
 use tracing::info;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
-use super::jobd::Jobd;
+use super::client::ClientError;
 use super::orchestrator::DownloadError;
 
 pub async fn cleaner(pool: SqlitePool, config: Config) {
@@ -83,15 +86,12 @@ pub async fn sender(pool: SqlitePool, config: Config) {
                 tokio::spawn(async move {
                     j.update_status(Status::Processing, &pool_clone).await.ok();
 
-                    match orchestrator::send(&j, &config_clone, Jobd).await {
+                    match orchestrator::send(&j, &config_clone, Client).await {
                         Ok(upload_id) => {
                             info!("submitting: {:?}", j);
                             j.update_status(Status::Submitted, &pool_clone).await.ok();
                             j.update_dest_id(upload_id, &pool_clone).await.ok();
-                            // debug!("{:?}", j);
-                        }
-                        Err(orchestrator::UploadError::UnexpectedStatus(status)) => {
-                            error!("Unexpected status: {:?}", status);
+                            debug!("{:?}", j);
                         }
                         Err(e) => {
                             error!("Upload error: {:?}", e);
@@ -108,30 +108,67 @@ pub async fn sender(pool: SqlitePool, config: Config) {
 
 pub async fn getter(pool: SqlitePool, config: Config) {
     let mut queue = Queue::new(&config);
-    if queue
-        .list_per_status(Status::Submitted, &pool)
-        .await
-        .is_ok()
-    {
-        // info!("There are {:?} submitted jobs", queue.jobs.len());
+
+    if let Err(e) = queue.list_per_status(Status::Submitted, &pool).await {
+        error!("Failed to fetch submitted jobs: {:?}", e);
+        return;
+    }
+
+    let _: Vec<_> = stream::iter(queue.jobs)
+        .map(|mut j| {
+            let pool = pool.clone();
+            let config = config.clone();
+            async move {
+                match orchestrator::retrieve(&j, &config, Client).await {
+                    Ok(_) => {
+                        if let Err(e) = j.update_status(Status::Completed, &pool).await {
+                            error!("Failed to update job {} to Completed: {:?}", j.id, e);
+                        } else {
+                            info!("Job {} completed successfully", j.id);
+                        }
+                    }
+                    Err(DownloadError::JobNotReady) => {
+                        debug!("Job {} not ready yet", j.id);
+                    }
+                    Err(DownloadError::JobNotFound) => {
+                        warn!("Job {} not found on server", j.id);
+                        j.update_status(Status::Unknown, &pool).await.ok();
+                    }
+                    Err(e) => {
+                        error!("Failed to download job {}: {:?}", j.id, e);
+                        j.update_status(Status::Unknown, &pool).await.ok();
+                    }
+                }
+            }
+        })
+        // NOTE: This will limit how many "retrieves" we are doing at a single time, this might
+        // be relevant to avoid overloading the system
+        .buffer_unordered(10)
+        .collect()
+        .await;
+}
+
+// Client side
+pub async fn runner(pool: SqlitePool, config: Config) {
+    let mut queue = PayloadQueue::new(&config);
+    if queue.list_per_status(Status::Prepared, &pool).await.is_ok() {
         let futures = queue
             .jobs
             .into_iter()
             .map(|mut j| {
                 let pool_clone = pool.clone();
-                let config_clone = config.clone();
                 tokio::spawn(async move {
-                    let result = orchestrator::retrieve(&j, &config_clone, Jobd).await;
-                    match result {
+                    match execute_payload(&j) {
                         Ok(_) => {
                             j.update_status(Status::Completed, &pool_clone).await.ok();
                         }
-                        Err(DownloadError::NotReady) => {}
-                        Err(DownloadError::NotFound) => {
-                            j.update_status(Status::Unknown, &pool_clone).await.ok();
-                        }
-                        Err(e) => {
-                            error!("{:?}", e);
+                        // TODO: Add specific error handler for each case
+                        Err(
+                            ClientError::Execution
+                            | ClientError::Script
+                            | ClientError::NoExecScript,
+                        ) => {
+                            j.update_status(Status::Failed, &pool_clone).await.ok();
                         }
                     }
                 })
@@ -147,6 +184,7 @@ mod test {
 
     use super::*;
     use crate::config::loader::{Config, Service};
+    use crate::models::payload_dao::Payload;
     use crate::models::{job_dao::Job, job_dto::create_jobs_table};
     use std::{path::Path, time::Duration};
     use tempfile::TempDir;
@@ -215,9 +253,8 @@ mod test {
         _job.retrieve_id(id, &pool).await.unwrap();
 
         // Since nothing is configured, it will fail
-        //  the only thing we need to test here is if
-        //  the status is not being updated
-        assert_eq!(_job.status, Status::Submitted);
+        //  and set the job as Unknown
+        assert_eq!(_job.status, Status::Unknown);
 
         // TODO: Add mock the `retrieve` function to test the match arm
     }
@@ -255,5 +292,97 @@ mod test {
         let _ = _job.retrieve_id(job.id, &pool).await;
 
         assert_eq!(_job.status, Status::Cleaned);
+    }
+
+    #[tokio::test]
+    async fn test_runner() {
+        // Initialize pool
+        let pool = crate::datasource::db::init_payload_db().await;
+        // Initialize config
+        let mut config = Config::new().unwrap();
+        let tempdir = TempDir::new().unwrap();
+        config.data_path = tempdir.path().to_str().unwrap().to_string();
+
+        // Add a payload
+        let mut payload = Payload::new();
+        payload
+            .add_to_db(&pool)
+            .await
+            .expect("Failed to add payload to DB");
+
+        // Add input data
+        let data = b"#!/bin/bash\necho 'Hello, World!' > output.txt\n";
+        payload.add_input("run.sh".to_string(), data.to_vec());
+
+        // Prepare the payload
+        payload
+            .prepare(&config.data_path)
+            .expect("Failed to prepare payload");
+
+        // Mark as prepared
+        payload
+            .update_status(Status::Prepared, &pool)
+            .await
+            .expect("Failed to update payload status");
+
+        // Run the runner
+        runner(pool.clone(), config).await;
+
+        // Check the effects
+        let mut _payload = Payload::new();
+        _payload
+            .retrieve_id(payload.id, &pool)
+            .await
+            .expect("Failed to retrieve payload");
+
+        assert_eq!(_payload.status, Status::Completed);
+        let expected_output = tempdir
+            .path()
+            .join(payload.id.to_string())
+            .join("output.txt");
+        assert!(expected_output.exists());
+    }
+
+    #[tokio::test]
+    async fn test_runner_failure() {
+        // Initialize pool
+        let pool = crate::datasource::db::init_payload_db().await;
+        // Initialize config
+        let config = Config::new().unwrap();
+
+        // Add a payload
+        let mut payload = Payload::new();
+        payload
+            .add_to_db(&pool)
+            .await
+            .expect("Failed to add payload to DB");
+
+        // Add input data
+        let data = b"#!/bin/bash\nexit 1\n";
+        payload.add_input("run.sh".to_string(), data.to_vec());
+
+        // Prepare the payload
+        payload
+            .prepare(&config.data_path)
+            .expect("Failed to prepare payload");
+
+        // Mark as prepared
+        payload
+            .update_status(Status::Prepared, &pool)
+            .await
+            .expect("Failed to update payload status");
+
+        // Run the runner
+        runner(pool.clone(), Config::new().unwrap()).await;
+
+        // Check the effects
+        // NOTE: You need to retrieve the payload again to get the updated status
+        let mut _payload = Payload::new();
+        _payload
+            .retrieve_id(payload.id, &pool)
+            .await
+            .expect("Failed to retrieve payload");
+
+        assert_eq!(_payload.status, Status::Failed);
     }
 }

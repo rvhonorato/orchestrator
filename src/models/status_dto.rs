@@ -12,12 +12,14 @@ pub enum Status {
     Submitted,
     Unknown,
     Cleaned,
+    Prepared,
 }
 
 impl fmt::Display for Status {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Status::Pending => write!(f, "pending"),
+            Status::Prepared => write!(f, "prepared"),
             Status::Processing => write!(f, "processing"),
             Status::Completed => write!(f, "completed"),
             Status::Failed => write!(f, "failed"),
