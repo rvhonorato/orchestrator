@@ -56,6 +56,23 @@ impl Payload {
         Ok(())
     }
 
+    pub async fn update_loc(&mut self, pool: &SqlitePool) -> Result<(), sqlx::Error> {
+        let loc_str = self.loc.to_str().ok_or_else(|| {
+            sqlx::Error::Protocol(
+                "Invalid loc path: contains invalid UTF-8 and cannot be converted to string"
+                    .to_string(),
+            )
+        })?;
+
+        sqlx::query("UPDATE payloads SET loc = ? WHERE id = ?")
+            .bind(loc_str)
+            .bind(self.id)
+            .execute(pool)
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn retrieve_id(id: u32, pool: &SqlitePool) -> Result<Payload, sqlx::Error> {
         let row = sqlx::query("SELECT * FROM payloads WHERE id = ?")
             .bind(id)

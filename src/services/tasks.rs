@@ -319,6 +319,12 @@ mod test {
             .prepare(&config.data_path)
             .expect("Failed to prepare payload");
 
+        // Update loc in database after prepare
+        payload
+            .update_loc(&pool)
+            .await
+            .expect("Failed to update payload loc");
+
         // Mark as prepared
         payload
             .update_status(Status::Prepared, &pool)
@@ -363,6 +369,12 @@ mod test {
         payload
             .prepare(&config.data_path)
             .expect("Failed to prepare payload");
+
+        // Update loc in database after prepare
+        payload
+            .update_loc(&pool)
+            .await
+            .expect("Failed to update payload loc");
 
         // Mark as prepared
         payload

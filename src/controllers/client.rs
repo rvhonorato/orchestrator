@@ -49,6 +49,12 @@ pub async fn submit(
         )
     })?;
 
+    // Update loc in database after prepare() sets it
+    payload
+        .update_loc(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     payload
         .update_status(Status::Prepared, &state.pool)
         .await
