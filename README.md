@@ -1,126 +1,197 @@
-# orchestrator
+# Orchestrator
 
 ![GitHub License](https://img.shields.io/github/license/rvhonorato/orchestrator)
 ![GitHub Release](https://img.shields.io/github/v/release/rvhonorato/orchestrator)
 [![ci](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml)
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7f2a8816886645d28cbaac0fead038f9)](https://app.codacy.com/gh/rvhonorato/orchestrator/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 
+> An asynchronous job orchestration system for managing and distributing computational workloads across heterogeneous computing resources with intelligent quota-based load balancing.
+
 ## Overview
 
-This is a central component [WeNMR](https://wenmr.science.uu.nl), a worldwide
-e-Infrastructure for NMR and structural biology - operated by
-the [BonvinLab](https://bonvinlab.org) at the [Utrecht University](https://uu.nl).
-It is closely coupled with [`jobd`](https://github.com/rvhonorato/jobd),
-with more destinations to be added in the future such as:
+Orchestrator is a central component of [WeNMR](https://wenmr.science.uu.nl), a worldwide e-Infrastructure for structural biology operated by the [BonvinLab](https://bonvinlab.org) at [Utrecht University](https://uu.nl). It serves as a reactive middleware layer that connects web applications to diverse computing resources, enabling efficient job distribution for scientific computing workflows.
 
-- [DIRAC Interware](https://dirac.readthedocs.io/en/latest/index.html)
-- Educational cloud services
-- SLURM
+### Key Features
 
-This is an asynchronous job orchestration system written in Rust that
-manages and distributes computational jobs across research software
-apps. Its a reactive middleware layer between the backend and various
-computing resources, implementing quota-based load balancing.
+- **Asynchronous Job Management**: Built with Rust and Tokio for high-performance async operations
+- **Quota-Based Load Balancing**: Per-user, per-service quotas prevent resource exhaustion
+- **Dual-Mode Architecture**: Runs as server (job orchestration) or client (job execution)
+- **Multiple Backend Support**: Extensible to integrate with various computing resources:
+  - Native client mode for local job execution
+  - [DIRAC Interware](https://dirac.readthedocs.io/en/latest/index.html) _(planned)_
+  - SLURM clusters _(planned)_
+  - Educational cloud services _(planned)_
+- **RESTful API**: Simple HTTP interface for job submission and retrieval
+- **Automatic Cleanup**: Configurable retention policies for completed jobs
+
+### Architecture
 
 ```mermaid
 flowchart LR
-    B([User]) --> C[Web App]
-    C[Web App] <--> Y[(Database)]
-    C[Web App] --> X{{Orchestrator}}
-    X -->|jobd| D[[prodigy]]
-    X -->|jobd| E[[disvis]]
-    X -->|jobd| G[[other_service]]
-    E -->|slurml| H[local HPC]
+    B([User]) --> C[Web Application]
+    C[Web Application] <--> Y[(Database)]
+    C --> X{{Orchestrator Server<br/>Port 5000}}
+    X -->|REST API| D[Orchestrator Client<br/>prodigy:9000]
+    X -->|REST API| E[Orchestrator Client<br/>disvis:9000]
+    X -->|REST API| G[Orchestrator Client<br/>other services:9000]
+    E -.->|optional| H[HPC/SLURM]
 ```
 
-## Example
+**Components:**
+
+- **Orchestrator Server** (port 5000): Receives job submissions, tracks state, manages quotas, and distributes work
+- **Orchestrator Client** (port 9000): Receives jobs from server, executes them locally, and returns results
+- **Database**: SQLite for job tracking and state management
+- **Filesystem**: Local storage for job files and results
+
+Both server and client modes are provided by the same binary, configured via command-line arguments.
+
+## Quick Start
+
+### Running with Docker Compose
 
 ```bash
-curl -s -X POST http://localhost:5000/upload \
+docker compose up --build
+```
+
+This starts both the orchestrator server (port 5000) and an example client (port 9000).
+
+### Submitting a Job
+
+```bash
+curl -X POST http://localhost:5000/upload \
   -F "file=@example/run.sh" \
   -F "file=@example/2oob.pdb" \
   -F "user_id=1" \
   -F "service=example" | jq
 ```
 
-It will return some information:
+Response:
 
 ```json
 {
   "id": 1,
   "user_id": 1,
-  "service": "generic",
+  "service": "example",
   "status": "Queued",
   "loc": "/opt/data/978e5a14-dc94-46ab-9507-fe0a94d688b8",
   "dest_id": ""
 }
 ```
 
-### CHECK the status
+### Checking Job Status
+
+Use HTTP HEAD to check status without downloading:
 
 ```bash
 curl -I http://localhost:5000/download/1
 ```
 
-- `200`, File downloaded successfully
-- `202`, Job not ready,
-- `204`, Job failed or cleaned
-- `404`, Job not found
-- `500`, Internal server error
+**Status Codes:**
 
-### GET it
+- `200` - Job completed, ready to download
+- `202` - Job queued or running
+- `204` - Job failed or cleaned up
+- `404` - Job not found
+- `500` - Internal server error
 
-```bash
-$ curl -I http://localhost:5000/download/16
-HTTP/1.1 200 OK
-content-type: application/octet-stream
-content-length: 380
-date: Mon, 06 Oct 2025 14:13:16 GMT
-```
+### Downloading Results
+
+Once the job completes (status `200`):
 
 ```bash
 curl -o results.zip http://localhost:5000/download/1
 ```
 
-### Extra: Submit a large volume to see the queue in action
+## How It Works
+
+### Job Lifecycle
+
+1. **Submission**: User uploads files via `/upload` endpoint with `user_id` and `service` parameters
+2. **Queuing**: Job enters queue; orchestrator checks user quotas before dispatching
+3. **Distribution**: Server sends job to available client matching the service type
+4. **Execution**: Client executes the job and signals completion
+5. **Retrieval**: Server fetches results from client and stores locally
+6. **Download**: User downloads results as a ZIP archive
+7. **Cleanup**: Completed jobs are automatically removed after configured retention period (default: 48 hours)
+
+### Quota System
+
+The orchestrator enforces per-user, per-service quotas to ensure fair resource allocation. Configuration example:
+
+```bash
+SERVICE_EXAMPLE_RUNS_PER_USER=5  # Max 5 concurrent jobs per user for "example" service
+```
+
+This prevents any single user from monopolizing computing resources.
+
+### Testing the Queue
+
+Submit multiple jobs to observe quota-based throttling:
 
 ```bash
 for i in {1..250}; do
   cat <<EOF > run.sh
 #!/bin/bash
-# Pretend we are calculating something
 sleep \$((RANDOM % 36 + 25))
-# Done!
-echo 'This is a downloadable file.' > output.txt
+echo 'Computation complete!' > output.txt
 EOF
   curl -s -X POST http://localhost:5000/upload \
     -F "file=@run.sh" \
     -F "user_id=1" \
-    -F "service=generic" > /dev/null
+    -F "service=example" > /dev/null
   echo "Submitted job $i"
 done
 ```
 
-See the logs of the `orchestrator` container:
+Monitor the orchestration in real-time:
 
 ```bash
-  -f deployment/docker_compose.yml \
-  --project-directory .\
-  logs orchestrator --follow
+docker compose logs server --follow
 ```
 
-You will see jobs being picked up and sent to `jobd` gradually,
-following the quota defined in the configuration file via `SERVICE_GENERIC_RUNS_PER_USER`
+You'll see jobs dispatched gradually according to the configured quota limits.
 
-## Implementation
+## Use Cases
 
-🚧 soon 🚧
+Orchestrator is designed for scenarios requiring:
 
-## Docs
+- **Scientific Computing Workflows**: Distribute computational biology/chemistry jobs across clusters
+- **Multi-Tenant Systems**: Fair resource allocation with per-user quotas
+- **Heterogeneous Computing**: Route jobs to appropriate backends (local, HPC, cloud)
+- **Web-Based Science Platforms**: Decouple frontend from compute infrastructure
+- **Batch Processing**: Handle high-throughput job submissions with automatic queuing
 
-🚧 soon 🚧
+## Project Status
+
+**Current State**: Production-ready with server/client architecture
+
+**Planned Features**:
+
+- DIRAC Interware integration
+- SLURM direct integration
+- Enhanced monitoring and metrics
+- Job priority queues
+- Advanced scheduling policies
+- Client auto-discovery and registration
+
+## Documentation
+
+- **API Documentation**: Available via Swagger UI at `http://localhost:5000/swagger-ui/` when running
+- **Technical Documentation**: Coming soon
+- **Configuration Guide**: Coming soon
+
+## Contributing
+
+Contributions, bug reports, and feature requests are welcome via GitHub issues.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contact
 
-If you think this project would be useful for your use case or would like to
-suggest something, please reach out either via issue here or via email. (:
+For questions, collaborations, or if you think this project could benefit your use case:
+
+- **Issues**: [GitHub Issues](https://github.com/rvhonorato/orchestrator/issues)
+- **Email**: Rodrigo V. Honorato <rvhonorato@protonmail.com>
