@@ -1,11 +1,11 @@
 [package]
-name = "orchestrator"
+name = "job-orchestrator"
 version = "1.0.0"
 edition = "2021"
 description = "Asynchronous job orchestrator for managing and routing payloads between services and computing resources with quota tracking"
 authors = ["Rodrigo V. Honorato <rvhonorato@protonmail.com>"]
 license = "MIT"
-repository = "https://github.com/yourusername/orchestrator"
+repository = "https://github.com/rvhonorato/job-orchestrator"
 keywords = [
   "async",
   "job-scheduler",

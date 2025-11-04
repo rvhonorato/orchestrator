@@ -1,15 +1,16 @@
-# Orchestrator
+# job-orchestrator
 
-![GitHub License](https://img.shields.io/github/license/rvhonorato/orchestrator)
-![GitHub Release](https://img.shields.io/github/v/release/rvhonorato/orchestrator)
-[![ci](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/rvhonorato/orchestrator/actions/workflows/ci.yml)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/7f2a8816886645d28cbaac0fead038f9)](https://app.codacy.com/gh/rvhonorato/orchestrator/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+![GitHub License](https://img.shields.io/github/license/rvhonorato/job-orchestrator)
+![GitHub Release](https://img.shields.io/github/v/release/rvhonorato/job-orchestrator)
+[![ci](https://github.com/rvhonorato/job-orchestrator/actions/workflows/ci.yml/badge.svg)](https://github.com/rvhonorato/job-orchestrator/actions/workflows/ci.yml)
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/7f2a8816886645d28cbaac0fead038f9)](https://app.codacy.com/gh/rvhonorato/job-orchestrator/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
+[![Crates.io](https://img.shields.io/crates/v/job-orchestrator)](https://crates.io/crates/job-orchestrator)
 
 > An asynchronous job orchestration system for managing and distributing computational workloads across heterogeneous computing resources with intelligent quota-based load balancing.
 
 ## Overview
 
-Orchestrator is a central component of [WeNMR](https://wenmr.science.uu.nl), a worldwide e-Infrastructure for structural biology operated by the [BonvinLab](https://bonvinlab.org) at [Utrecht University](https://uu.nl). It serves as a reactive middleware layer that connects web applications to diverse computing resources, enabling efficient job distribution for scientific computing workflows.
+job-orchestrator is a central component of [WeNMR](https://wenmr.science.uu.nl), a worldwide e-Infrastructure for structural biology operated by the [BonvinLab](https://bonvinlab.org) at [Utrecht University](https://uu.nl). It serves as a reactive middleware layer that connects web applications to diverse computing resources, enabling efficient job distribution for scientific computing workflows.
 
 ### Key Features
 
@@ -193,5 +194,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 For questions, collaborations, or if you think this project could benefit your use case:
 
-- **Issues**: [GitHub Issues](https://github.com/rvhonorato/orchestrator/issues)
+- **Issues**: [GitHub Issues](https://github.com/rvhonorato/job-orchestrator/issues)
 - **Email**: Rodrigo V. Honorato <rvhonorato@protonmail.com>

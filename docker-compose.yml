@@ -4,7 +4,7 @@ services:
       dockerfile: Dockerfile
       target: prod
     container_name: server
-    command: /usr/bin/orchestrator server
+    command: /usr/bin/job-orchestrator server
     environment:
       # Location inside the container where the data will be saved
       DATA_PATH: /opt/data
@@ -29,7 +29,7 @@ services:
     build:
       dockerfile: Dockerfile
       target: example
-    command: /usr/bin/orchestrator client
+    command: /usr/bin/job-orchestrator client
     container_name: example
     ports:
       - "9000:9000"
