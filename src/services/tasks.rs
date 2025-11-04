@@ -157,7 +157,6 @@ pub async fn runner(pool: SqlitePool, config: Config) {
             .into_iter()
             .map(|mut j| {
                 let pool_clone = pool.clone();
-                let _config_clone = config.clone();
                 tokio::spawn(async move {
                     match execute_payload(&j) {
                         Ok(_) => {
