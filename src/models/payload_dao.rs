@@ -67,10 +67,7 @@ impl Payload {
         }
 
         // Read the output.zip file and return its content
-        match std::fs::read(&result) {
-            Ok(v) => Ok(v),
-            Err(e) => Err(format!("Error reading {:?}: {:?}", result, e)),
-        }
+        std::fs::read(&result).map_err(|e| format!("Error reading {:?}: {:?}", result, e))
     }
 }
 
