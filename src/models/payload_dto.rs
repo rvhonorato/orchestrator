@@ -68,7 +68,7 @@ impl Payload {
         let mut payload = Payload::new();
         payload.id = row.get("id");
         payload.status = Status::from_string(&status);
-        payload.loc = loc.map(PathBuf::from).unwrap_or_else(PathBuf::new);
+        payload.loc = loc.map(PathBuf::from).unwrap_or_default();
 
         Ok(payload)
     }
